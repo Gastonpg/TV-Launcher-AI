@@ -1,13 +1,8 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#00000000" android:strokeColor="#82B8FF" android:strokeWidth="3.5" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M31,25L42,15M77,25L66,15" />
-    <path android:fillColor="#17233A" android:strokeColor="#82B8FF" android:strokeWidth="3" android:pathData="M20,28Q20,22 27,22H81Q88,22 88,29V70Q88,77 81,77H27Q20,77 20,70Z" />
-    <path android:fillColor="#263F68" android:pathData="M26,29H82V68H26Z" />
-    <path android:fillColor="#82B8FF" android:pathData="M29,32H79V65H29Z" />
-    <path android:fillColor="#17233A" android:pathData="M33,36H75V61H33Z" />
-    <path android:fillColor="#9C8CFF" android:pathData="M34,60L47,44L55,52L63,42L75,60Z" />
-    <path android:fillColor="#FFFFFF" android:pathData="M33,82H75V87H33Z" />
-    <path android:fillColor="#82B8FF" android:pathData="M47,77H61V83H47Z" />
-    <path android:fillColor="#FFFFFF" android:pathData="M37,46L37,40L41,40L41,38L44,38L44,40L48,40L48,46L44,46L44,48L41,48L41,46Z" />
-    <path android:fillColor="#FFFFFF" android:pathData="M50,39H54V45H50Z" />
-    <path android:fillColor="#FFFFFF" android:pathData="M57,39H68V42H60V43H67V46H60V48H57Z" />
+    <path android:fillColor="#17233A" android:pathData="M0,0H108V108H0Z" />
+    <path android:fillColor="#202D46" android:strokeColor="#82B8FF" android:strokeWidth="3" android:pathData="M13,18Q13,11 21,11H87Q95,11 95,19V88Q95,96 87,96H21Q13,96 13,88Z" />
+    <path android:fillColor="#00000000" android:strokeColor="#82B8FF" android:strokeWidth="2" android:pathData="M26,82H82" />
+    <path android:fillColor="#FFFFFF" android:pathData="M25,36H47V43H39V72H31V43H25Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M52,36H68Q82,36 82,49Q82,62 68,62H61V72H52Z M61,43V55H67Q74,55 74,49Q74,43 67,43Z" />
+    <path android:fillColor="#82B8FF" android:pathData="M41,82H67V86H41Z" />
 </vector>
