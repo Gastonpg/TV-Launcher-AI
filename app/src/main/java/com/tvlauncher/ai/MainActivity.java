@@ -53,6 +53,8 @@ public class MainActivity extends Activity {
     private TextView heroTitle, heroDescription, statusText;
     private LinearLayout appRail;
     private int fallbackIndex = 0;
+    private int backdropToken = 0;
+    private final Bitmap[] fallbackCache = new Bitmap[6];
     private boolean useTmdb = false;
     private String tmdbKey = "";
     private final SharedPreferences prefs() { return getSharedPreferences("tvpg", MODE_PRIVATE); }
@@ -114,8 +116,8 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams brandParams = new LinearLayout.LayoutParams(-2, -2); brandParams.leftMargin = dp(13);
         header.addView(brand, brandParams);
         View spacer = new View(this); header.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1));
-        Button settings = button("⚙  Configurar", false);
-        settings.setOnClickListener(v -> showSettings());
+        Button settings = button("⚙  Ajustes TV", false);
+        settings.setOnClickListener(v -> openSystemSettings());
         header.addView(settings, new LinearLayout.LayoutParams(-2, dp(44)));
         content.addView(header, new LinearLayout.LayoutParams(-1, dp(52)));
 
@@ -192,8 +194,12 @@ public class MainActivity extends Activity {
             tile.addView(icon, new LinearLayout.LayoutParams(dp(42), dp(42)));
             TextView name = text(String.valueOf(info.loadLabel(pm)), 11, white, true); name.setGravity(Gravity.CENTER); name.setMaxLines(1); name.setEllipsize(android.text.TextUtils.TruncateAt.END);
             LinearLayout.LayoutParams nameParams = new LinearLayout.LayoutParams(dp(94), -2); nameParams.topMargin = dp(4); tile.addView(name, nameParams);
-            tile.setOnFocusChangeListener((v, focused) -> { v.setScaleX(focused ? 1.06f : 1f); v.setScaleY(focused ? 1.06f : 1f); v.setElevation(focused ? dp(8) : 0); });
+            final String appLabel = String.valueOf(info.loadLabel(pm));
             final String pkg = info.activityInfo.packageName; final String cls = info.activityInfo.name;
+            tile.setOnFocusChangeListener((v, focused) -> {
+                v.setScaleX(focused ? 1.06f : 1f); v.setScaleY(focused ? 1.06f : 1f); v.setElevation(focused ? dp(8) : 0);
+                if (focused) showAppBackdrop(appLabel, pkg);
+            });
             tile.setOnClickListener(v -> {
                 try { Intent launch = new Intent(Intent.ACTION_MAIN); launch.setClassName(pkg, cls); launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); startActivity(launch); }
                 catch (Exception e) { try { startActivity(pm.getLaunchIntentForPackage(pkg)); } catch (Exception ignored) { } }
@@ -201,6 +207,39 @@ public class MainActivity extends Activity {
             LinearLayout.LayoutParams tileParams = new LinearLayout.LayoutParams(dp(112), dp(100)); tileParams.rightMargin = dp(10); appRail.addView(tile, tileParams);
         }
         if (appRail.getChildCount() > 0) appRail.getChildAt(0).setNextFocusUpId(View.NO_ID);
+    }
+
+    private void openSystemSettings() {
+        try {
+            Intent intent = new Intent(android.provider.Settings.ACTION_SETTINGS);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        } catch (Exception e) {
+            Toast.makeText(this, "Este TV Box no permite abrir los ajustes del sistema desde una app.", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    // When an app tile receives remote-control focus, switch to a cinematic backdrop.
+    // The fallback images are generic online artwork; TMDB supplies real title backdrops when configured.
+    private void showAppBackdrop(String label, String packageName) {
+        heroTitle.setText(label);
+        heroDescription.setText("Presioná OK para abrir " + label + ".\nEl fondo cambia al recorrer tus aplicaciones.");
+        statusText.setText("Aplicación seleccionada · " + label);
+        int index = Math.abs((label + packageName).toLowerCase().hashCode()) % fallbackImages.length;
+        final int token = ++backdropToken;
+        if (fallbackCache[index] != null) {
+            heroImage.setImageBitmap(fallbackCache[index]);
+            return;
+        }
+        executor.execute(() -> {
+            try {
+                Bitmap bmp = getBitmap(fallbackImages[index]);
+                if (bmp != null) fallbackCache[index] = bmp;
+                handler.post(() -> {
+                    if (bmp != null && token == backdropToken) heroImage.setImageBitmap(bmp);
+                });
+            } catch (Exception ignored) { }
+        });
     }
 
     private void refreshFeatured() {
@@ -236,8 +275,9 @@ public class MainActivity extends Activity {
         final int index = fallbackIndex++ % fallbackImages.length;
         executor.execute(() -> {
             try {
-                Bitmap bmp = getBitmap(fallbackImages[index]);
-                handler.post(() -> { if (bmp != null) heroImage.setImageBitmap(bmp); heroTitle.setText(new String[]{"Una noche de cine", "Tu próxima aventura", "Historias para descubrir", "El espectáculo empieza acá", "Tu pantalla, tu mundo", "Un universo por explorar"}[index]); heroDescription.setText("Fondos cinematográficos online que cambian cuando elegís otro destacado."); statusText.setText(message); });
+                Bitmap bmp = fallbackCache[index] != null ? fallbackCache[index] : getBitmap(fallbackImages[index]);
+                if (bmp != null) fallbackCache[index] = bmp;
+                handler.post(() -> { if (bmp != null) { backdropToken++; heroImage.setImageBitmap(bmp); } heroTitle.setText(new String[]{"Una noche de cine", "Tu próxima aventura", "Historias para descubrir", "El espectáculo empieza acá", "Tu pantalla, tu mundo", "Un universo por explorar"}[index]); heroDescription.setText("Fondos cinematográficos online que cambian cuando elegís otro destacado."); statusText.setText(message); } });
             } catch (Exception ignored) { handler.post(() -> statusText.setText("Sin conexión con las imágenes. Revisá internet y probá de nuevo.")); }
         });
     }
