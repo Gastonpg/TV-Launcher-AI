@@ -275,8 +275,8 @@ public class MainActivity extends Activity {
             String poster = item.optString("poster_path", "");
             LinearLayout card = new LinearLayout(this); card.setOrientation(LinearLayout.VERTICAL); card.setFocusable(true); card.setClickable(true); card.setPadding(dp(3),dp(3),dp(3),dp(3));
             GradientDrawable normal = new GradientDrawable(); normal.setColor(cardColor); normal.setCornerRadius(dp(10));
-            GradientDrawable focused = new GradientDrawable(); focused.setColor(0xff263f68); focused.setCornerRadius(dp(10)); focused.setStroke(dp(2),blue);
-            StateListDrawable state = new StateListDrawable(); state.addState(new int[]{android.R.attr.state_focused},focused); state.addState(new int[]{},normal); card.setBackground(state);
+            GradientDrawable focusedBackground = new GradientDrawable(); focusedBackground.setColor(0xff263f68); focusedBackground.setCornerRadius(dp(10)); focusedBackground.setStroke(dp(2),blue);
+            StateListDrawable state = new StateListDrawable(); state.addState(new int[]{android.R.attr.state_focused},focusedBackground); state.addState(new int[]{},normal); card.setBackground(state);
             ImageView image = new ImageView(this); image.setScaleType(ImageView.ScaleType.CENTER_CROP); image.setBackgroundColor(0xff202a3d);
             card.addView(image,new LinearLayout.LayoutParams(dp(112),dp(125)));
             TextView label = text(title,10,white,true); label.setMaxLines(2); label.setEllipsize(TextUtils.TruncateAt.END); label.setGravity(Gravity.CENTER_VERTICAL);
