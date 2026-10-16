@@ -1,14 +1,22 @@
-plugins { id 'com.android.application' }
+plugins {
+    id 'com.android.application'
+}
+
 android {
     namespace 'com.tvlauncher.ai'
     compileSdk 34
+
     defaultConfig {
-        applicationId 'com.tvlauncher.ai'
+        applicationId 'com.tvlaunch.pg'
         minSdk 28
         targetSdk 28
-        versionCode 1
-        versionName '1.0'
+        versionCode 2
+        versionName '1.1'
         ndk { abiFilters 'armeabi-v7a' }
     }
-    compileOptions { sourceCompatibility JavaVersion.VERSION_1_8; targetCompatibility JavaVersion.VERSION_1_8 }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
 }
