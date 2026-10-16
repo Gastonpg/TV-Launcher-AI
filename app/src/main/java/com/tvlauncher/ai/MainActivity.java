@@ -59,6 +59,8 @@ public class MainActivity extends Activity {
     private String tmdbKey = "";
     private String selectedPackage = "";
     private String selectedAppName = "";
+    private static final int REQUEST_BACKGROUND_IMAGE = 7401;
+    private String customWallpaperUri = "";
     private final List<JSONObject> trending = new ArrayList<>();
     private int backdropToken = 0;
     private int fallbackIndex = 0;
@@ -77,10 +79,11 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         tmdbKey = prefs().getString("tmdb_key", "").trim();
+        customWallpaperUri = prefs().getString("wallpaper_uri", "");
         buildUi();
         loadApps();
         refreshCatalog();
-        showFallback("Preparando TV Launcher PG…");
+        if (!applyCustomWallpaper()) showFallback("Preparando TV Launcher PG…");
         handler.postDelayed(new Runnable() {
             @Override public void run() {
                 if (trending.isEmpty()) showFallback("Fondos online · configurá TMDB para cargar catálogos reales.");
@@ -119,7 +122,7 @@ public class MainActivity extends Activity {
         View spacer = new View(this); header.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1));
         Button systemSettings = button("⚙ Ajustes del TV", false); systemSettings.setOnClickListener(v -> openSystemSettings());
         header.addView(systemSettings, new LinearLayout.LayoutParams(-2, dp(46)));
-        Button config = button("Catálogo", true); config.setOnClickListener(v -> showCatalogSettings());
+        Button config = button("Personalizar", true); config.setOnClickListener(v -> showPersonalizationMenu());
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-2, dp(46)); cp.leftMargin = dp(9); header.addView(config, cp);
         content.addView(header, new LinearLayout.LayoutParams(-1, dp(56)));
 
@@ -209,11 +212,14 @@ public class MainActivity extends Activity {
         selectedPackage = pkg; selectedAppName = name;
         heroTitle.setText(name);
         heroDescription.setText("Seleccionaste " + name + ". Explorá las recomendaciones o presioná OK para abrir la aplicación.");
-        if (!trending.isEmpty()) loadBackdropForApp(pkg);
-        else showFallback("Fondo destacado para " + name);
+        if (!hasCustomWallpaper()) {
+            if (!trending.isEmpty()) loadBackdropForApp(pkg);
+            else showFallback("Fondo destacado para " + name);
+        }
     }
 
     private void loadBackdropForApp(String pkg) {
+        if (hasCustomWallpaper()) return;
         int index = Math.abs(pkg.hashCode()) % trending.size();
         JSONObject item = trending.get(index);
         String path = item.optString("backdrop_path", "");
@@ -286,7 +292,7 @@ public class MainActivity extends Activity {
                 String imageUrl="https://image.tmdb.org/t/p/w342"+poster;
                 executor.execute(() -> { try { Bitmap bmp=getBitmap(imageUrl); handler.post(() -> { if(bmp!=null) image.setImageBitmap(bmp); }); } catch(Exception ignored){} });
             }
-            card.setOnFocusChangeListener((v, focused) -> { v.setScaleX(focused?1.04f:1f); v.setScaleY(focused?1.04f:1f); if(focused){heroTitle.setText(title); heroDescription.setText(overview.isEmpty()?"Explorá este título en tus aplicaciones instaladas.":overview); if(!poster.isEmpty()) { final int token=++backdropToken; executor.execute(() -> { try { Bitmap bmp=getBitmap("https://image.tmdb.org/t/p/w1280"+item.optString("backdrop_path", "")); handler.post(() -> { if(bmp!=null && token==backdropToken) heroImage.setImageBitmap(bmp); }); } catch(Exception ignored){} }); } } });
+            card.setOnFocusChangeListener((v, focused) -> { v.setScaleX(focused?1.04f:1f); v.setScaleY(focused?1.04f:1f); if(focused){heroTitle.setText(title); heroDescription.setText(overview.isEmpty()?"Explorá este título en tus aplicaciones instaladas.":overview); if(!hasCustomWallpaper() && !poster.isEmpty()) { final int token=++backdropToken; executor.execute(() -> { try { Bitmap bmp=getBitmap("https://image.tmdb.org/t/p/w1280"+item.optString("backdrop_path", "")); handler.post(() -> { if(bmp!=null && token==backdropToken) heroImage.setImageBitmap(bmp); }); } catch(Exception ignored){} }); } } });
             card.setOnClickListener(v -> showMediaDetails(title, overview, tv));
         }
     }
@@ -312,6 +318,20 @@ public class MainActivity extends Activity {
     }
 
     private void changeFeatured() {
+        if (hasCustomWallpaper()) {
+            if (!trending.isEmpty()) {
+                int index = (int)(System.currentTimeMillis() % trending.size());
+                JSONObject item = trending.get(index);
+                heroTitle.setText(item.optString("title", item.optString("name", "Contenido destacado")));
+                heroDescription.setText(item.optString("overview", "Una recomendación para descubrir."));
+            } else {
+                fallbackIndex++;
+                heroTitle.setText(new String[]{"Una noche de cine", "Tu próxima aventura", "Historias para descubrir", "El espectáculo empieza acá", "Tu pantalla, tu mundo", "Un universo por explorar"}[fallbackIndex % fallbackImages.length]);
+                heroDescription.setText("Fondo propio activado · elegí fondos automáticos desde Personalizar.");
+            }
+            statusText.setText("Fondo personalizado fijo");
+            return;
+        }
         if (!trending.isEmpty()) {
             int index = (int)(System.currentTimeMillis() % trending.size()); JSONObject item = trending.get(index);
             heroTitle.setText(item.optString("title",item.optString("name","Contenido destacado")));
@@ -322,6 +342,7 @@ public class MainActivity extends Activity {
     }
 
     private void showFallback(String message) {
+        if (applyCustomWallpaper()) { statusText.setText("Fondo personalizado fijo"); return; }
         final int index = fallbackIndex++ % fallbackImages.length; final int token=++backdropToken;
         executor.execute(() -> { try { Bitmap bmp=getBitmap(fallbackImages[index]); handler.post(() -> { if(bmp!=null && token==backdropToken) heroImage.setImageBitmap(bmp); if(selectedAppName.isEmpty()){ heroTitle.setText(new String[]{"Una noche de cine","Tu próxima aventura","Historias para descubrir","El espectáculo empieza acá","Tu pantalla, tu mundo","Un universo por explorar"}[index]); heroDescription.setText("Fondos cinematográficos online que cambian al elegir otro destacado."); } statusText.setText(message); }); } catch(Exception ignored) { handler.post(() -> statusText.setText("Sin conexión con las imágenes. Revisá internet.")); } });
     }
@@ -337,6 +358,99 @@ public class MainActivity extends Activity {
         HttpURLConnection connection=(HttpURLConnection)new URL(urlText).openConnection(); connection.setConnectTimeout(9000); connection.setReadTimeout(10000); connection.setRequestProperty("User-Agent","TVLauncherPG/2.0");
         try(InputStream in=connection.getInputStream()) { BitmapFactory.Options options=new BitmapFactory.Options(); options.inSampleSize=1; return BitmapFactory.decodeStream(in,null,options); }
         finally { connection.disconnect(); }
+    }
+
+    private boolean hasCustomWallpaper() {
+        return customWallpaperUri != null && !customWallpaperUri.trim().isEmpty();
+    }
+
+    private boolean applyCustomWallpaper() {
+        if (!hasCustomWallpaper() || heroImage == null) return false;
+        try {
+            heroImage.setImageURI(Uri.parse(customWallpaperUri));
+            if (heroImage.getDrawable() != null) {
+                statusTextIfReady("Fondo personalizado fijo");
+                return true;
+            }
+        } catch (Exception ignored) { }
+        customWallpaperUri = "";
+        prefs().edit().remove("wallpaper_uri").apply();
+        return false;
+    }
+
+    private void statusTextIfReady(String value) {
+        if (statusText != null) statusText.setText(value);
+    }
+
+    private void showPersonalizationMenu() {
+        String[] options = new String[] {
+            "Elegir imagen de la TV Box",
+            "Usar fondos cinematográficos automáticos",
+            "Configurar catálogo de películas y series (TMDB)",
+            "Establecer como launcher predeterminado"
+        };
+        new AlertDialog.Builder(this)
+            .setTitle("Personalizar TV Launcher PG")
+            .setItems(options, (dialog, which) -> {
+                if (which == 0) chooseWallpaper();
+                else if (which == 1) useAutomaticWallpapers();
+                else if (which == 2) showCatalogSettings();
+                else openHomeSettings();
+            })
+            .setNegativeButton("Cerrar", null)
+            .show();
+    }
+
+    private void chooseWallpaper() {
+        try {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("image/*");
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+            startActivityForResult(intent, REQUEST_BACKGROUND_IMAGE);
+        } catch (Exception e) {
+            Toast.makeText(this, "Este sistema no permite elegir imágenes desde el almacenamiento.", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void useAutomaticWallpapers() {
+        customWallpaperUri = "";
+        prefs().edit().remove("wallpaper_uri").apply();
+        heroImage.setImageDrawable(null);
+        changeFeatured();
+        Toast.makeText(this, "Fondos cinematográficos automáticos activados", Toast.LENGTH_SHORT).show();
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_BACKGROUND_IMAGE || resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        Uri uri = data.getData();
+        try {
+            int flags = data.getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION;
+            getContentResolver().takePersistableUriPermission(uri, flags);
+        } catch (Exception ignored) { }
+        customWallpaperUri = uri.toString();
+        prefs().edit().putString("wallpaper_uri", customWallpaperUri).apply();
+        if (applyCustomWallpaper()) {
+            heroTitle.setText("Tu pantalla, tu mundo");
+            heroDescription.setText("Fondo personalizado activado. Volvé a Personalizar para usar fondos automáticos.");
+            Toast.makeText(this, "Fondo personalizado guardado", Toast.LENGTH_SHORT).show();
+        } else {
+            Toast.makeText(this, "No se pudo abrir esa imagen. Probá con otra.", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void openHomeSettings() {
+        try {
+            startActivity(new Intent(Settings.ACTION_HOME_SETTINGS));
+        } catch (Exception e) {
+            try {
+                startActivity(new Intent(Settings.ACTION_SETTINGS));
+                Toast.makeText(this, "En Ajustes, buscá Aplicaciones predeterminadas o Aplicación de inicio.", Toast.LENGTH_LONG).show();
+            } catch (Exception ignored) {
+                Toast.makeText(this, "Mantené presionado HOME en el control y elegí TV Launcher PG si aparece.", Toast.LENGTH_LONG).show();
+            }
+        }
     }
 
     private void showCatalogSettings() {
