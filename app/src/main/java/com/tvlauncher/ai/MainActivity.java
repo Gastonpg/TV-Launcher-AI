@@ -174,8 +174,9 @@ public class MainActivity extends Activity {
     private Button button(String label, boolean primary) {
         Button b = new Button(this); b.setText(label); b.setAllCaps(false); b.setTextSize(13); b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         b.setTextColor(primary ? Color.rgb(10,17,29) : white); b.setPadding(dp(13),0,dp(13),0); b.setFocusable(true);
-        GradientDrawable normal = new GradientDrawable(); normal.setCornerRadius(dp(13)); normal.setColor(primary ? blue : 0xb8293854);
-        GradientDrawable focused = new GradientDrawable(); focused.setCornerRadius(dp(13)); focused.setColor(primary ? blendColor(blue, Color.WHITE, 0.28f) : 0xff354b70); focused.setStroke(dp(2), 0xffdceaff);
+        GradientDrawable normal = glassDrawable(primary ? blendColor(blue, 0xff152236, 0.58f) : 0x66232f45, 0x66ffffff, 13);
+        GradientDrawable focused = glassDrawable(blendColor(blue, 0xff17283e, 0.28f), 0xffdceaff, 13);
+        focused.setStroke(dp(2), blue);
         StateListDrawable states = new StateListDrawable(); states.addState(new int[]{android.R.attr.state_focused}, focused); states.addState(new int[]{}, normal); b.setBackground(states); return b;
     }
 
@@ -192,23 +193,61 @@ public class MainActivity extends Activity {
             if (info.activityInfo.packageName.equals(getPackageName())) continue;
             final String pkg = info.activityInfo.packageName; final String cls = info.activityInfo.name;
             final String name = String.valueOf(info.loadLabel(pm));
-            LinearLayout tile = new LinearLayout(this); tile.setOrientation(LinearLayout.VERTICAL); tile.setGravity(Gravity.CENTER);
-            tile.setFocusable(true); tile.setClickable(true); tile.setPadding(dp(3),dp(4),dp(3),dp(4));
-            // Keep app icons floating: no opaque card/square behind each icon.
+
+            // Google TV-inspired app tile: a wide rounded card, not a square box around the icon.
+            LinearLayout tile = new LinearLayout(this);
+            tile.setOrientation(LinearLayout.VERTICAL);
+            tile.setGravity(Gravity.CENTER);
+            tile.setFocusable(true);
+            tile.setClickable(true);
+            tile.setPadding(dp(2), dp(3), dp(2), dp(3));
             tile.setBackgroundColor(Color.TRANSPARENT);
-            ImageView icon = new ImageView(this); icon.setBackgroundColor(Color.TRANSPARENT);
+
+            FrameLayout card = new FrameLayout(this);
+            GradientDrawable normalCard = glassDrawable(0x55202d43, 0x66ffffff, 15);
+            GradientDrawable focusedCard = glassDrawable(blendColor(blue, 0xff20334c, 0.48f), 0xffd9ebff, 15);
+            focusedCard.setStroke(dp(2), blue);
+            StateListDrawable cardStates = new StateListDrawable();
+            cardStates.addState(new int[]{android.R.attr.state_focused}, focusedCard);
+            cardStates.addState(new int[]{}, normalCard);
+            card.setBackground(cardStates);
+            card.setClipToPadding(false);
+            card.setClipToOutline(true);
+            // A subtle top reflection gives the translucent card a glass-like finish on Android 9.
+            View sheen = new View(this);
+            GradientDrawable sheenDrawable = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                    new int[]{0x44ffffff, 0x12ffffff, 0x00ffffff});
+            sheenDrawable.setCornerRadius(dp(15));
+            sheen.setBackground(sheenDrawable);
+            card.addView(sheen, new FrameLayout.LayoutParams(-1, -1));
+
+            ImageView icon = new ImageView(this);
+            icon.setBackgroundColor(Color.TRANSPARENT);
             icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
             try { icon.setImageDrawable(info.loadIcon(pm)); } catch (Exception ignored) { }
-            tile.addView(icon, new LinearLayout.LayoutParams(dp(50),dp(50)));
-            TextView label = text(name, 11, white, true); label.setGravity(Gravity.CENTER); label.setMaxLines(1); label.setEllipsize(TextUtils.TruncateAt.END);
-            LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(dp(104),-2); np.topMargin = dp(5); tile.addView(label,np);
+            FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER);
+            card.addView(icon, iconParams);
+            tile.addView(card, new LinearLayout.LayoutParams(dp(128), dp(66)));
+
+            TextView label = text(name, 11, white, true);
+            label.setGravity(Gravity.CENTER);
+            label.setMaxLines(1);
+            label.setEllipsize(TextUtils.TruncateAt.END);
+            LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(dp(128), -2);
+            np.topMargin = dp(5);
+            tile.addView(label, np);
+
             tile.setOnFocusChangeListener((v, focused) -> {
-                v.setScaleX(focused ? 1.09f : 1f); v.setScaleY(focused ? 1.09f : 1f); v.setElevation(focused ? dp(9) : 0);
+                v.setScaleX(focused ? 1.07f : 1f);
+                v.setScaleY(focused ? 1.07f : 1f);
+                v.setElevation(focused ? dp(10) : 0);
                 label.setTextColor(focused ? blue : white);
                 if (focused) selectApp(pkg, name);
             });
             tile.setOnClickListener(v -> launchApp(pkg, cls));
-            LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(dp(112),dp(100)); item.rightMargin = dp(10); appRail.addView(tile,item);
+            LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(dp(140), dp(100));
+            item.rightMargin = dp(8);
+            appRail.addView(tile, item);
         }
         if (apps.isEmpty()) statusText.setText("No se encontraron aplicaciones iniciables.");
     }
@@ -273,7 +312,7 @@ public class MainActivity extends Activity {
     private void addCatalogPlaceholder(LinearLayout rail, String message) {
         if (rail.getChildCount() > 0) return;
         TextView placeholder = text(message, 13, muted, false); placeholder.setGravity(Gravity.CENTER_VERTICAL);
-        GradientDrawable bg = new GradientDrawable(); bg.setColor(cardColor); bg.setCornerRadius(dp(12)); placeholder.setBackground(bg); placeholder.setPadding(dp(16),0,dp(16),0);
+        GradientDrawable bg = glassDrawable(0x77202d43, 0x66ffffff, 12); placeholder.setBackground(bg); placeholder.setPadding(dp(16),0,dp(16),0);
         rail.addView(placeholder, new LinearLayout.LayoutParams(dp(280),dp(155)));
     }
 
@@ -286,10 +325,11 @@ public class MainActivity extends Activity {
             String overview = item.optString("overview", "Sin descripción disponible.");
             String poster = item.optString("poster_path", "");
             LinearLayout card = new LinearLayout(this); card.setOrientation(LinearLayout.VERTICAL); card.setFocusable(true); card.setClickable(true); card.setPadding(dp(3),dp(3),dp(3),dp(3));
-            GradientDrawable normal = new GradientDrawable(); normal.setColor(cardColor); normal.setCornerRadius(dp(10));
-            GradientDrawable focusedBackground = new GradientDrawable(); focusedBackground.setColor(0xff263f68); focusedBackground.setCornerRadius(dp(10)); focusedBackground.setStroke(dp(2),blue);
+            GradientDrawable normal = glassDrawable(0x88202d43, 0x66ffffff, 10);
+            GradientDrawable focusedBackground = glassDrawable(blendColor(blue, 0xff263f68, 0.35f), 0xffe4f1ff, 10); focusedBackground.setStroke(dp(2), blue);
             StateListDrawable state = new StateListDrawable(); state.addState(new int[]{android.R.attr.state_focused},focusedBackground); state.addState(new int[]{},normal); card.setBackground(state);
-            ImageView image = new ImageView(this); image.setScaleType(ImageView.ScaleType.CENTER_CROP); image.setBackgroundColor(0xff202a3d);
+            card.setClipToOutline(true);
+            ImageView image = new ImageView(this); image.setScaleType(ImageView.ScaleType.CENTER_CROP); image.setBackgroundColor(0x33202a3d);
             card.addView(image,new LinearLayout.LayoutParams(dp(112),dp(125)));
             TextView label = text(title,10,white,true); label.setMaxLines(2); label.setEllipsize(TextUtils.TruncateAt.END); label.setGravity(Gravity.CENTER_VERTICAL);
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(112),dp(35)); lp.topMargin=dp(3); card.addView(label,lp);
@@ -433,6 +473,24 @@ public class MainActivity extends Activity {
         int saved = prefs().getInt("accent_color", Color.rgb(130, 184, 255));
         for (int i = 0; i < colors.length; i++) if (colors[i] == saved) return i;
         return 0;
+    }
+
+    // Translucent gradient + fine light border: lightweight Liquid Glass styling for Android 9.
+    // It intentionally avoids real-time backdrop blur to keep older TV Boxes responsive.
+    private GradientDrawable glassDrawable(int tint, int stroke, float radiusDp) {
+        int top = blendWithAlpha(Color.WHITE, tint, 0.16f, 0x35);
+        int middle = tint;
+        int bottom = blendWithAlpha(Color.BLACK, tint, 0.08f, 0x58);
+        GradientDrawable drawable = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{top, middle, bottom});
+        drawable.setCornerRadius(dp(radiusDp));
+        drawable.setStroke(dp(1), stroke);
+        return drawable;
+    }
+
+    private int blendWithAlpha(int overlay, int base, float ratio, int alpha) {
+        int rgb = blendColor(overlay, base, ratio);
+        return (Math.max(0, Math.min(255, alpha)) << 24) | (rgb & 0x00ffffff);
     }
 
     private int blendColor(int foreground, int background, float ratio) {
