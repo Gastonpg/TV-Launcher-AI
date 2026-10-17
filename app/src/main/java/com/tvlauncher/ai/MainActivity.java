@@ -227,10 +227,19 @@ public class MainActivity extends Activity {
             np.topMargin = dp(5);
             tile.addView(label, np);
 
+            // Smooth Google TV-style focus: a small, visible zoom without changing the layout.
+            tile.setPivotX(dp(70));
+            tile.setPivotY(dp(50));
             tile.setOnFocusChangeListener((v, focused) -> {
-                v.setScaleX(focused ? 1.07f : 1f);
-                v.setScaleY(focused ? 1.07f : 1f);
-                v.setElevation(focused ? dp(10) : 0);
+                v.animate().cancel();
+                v.animate()
+                        .scaleX(focused ? 1.09f : 1f)
+                        .scaleY(focused ? 1.09f : 1f)
+                        .translationZ(focused ? dp(8) : 0f)
+                        .setDuration(focused ? 190 : 150)
+                        .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                        .start();
+                v.setElevation(focused ? dp(12) : 0);
                 label.setTextColor(focused ? blue : white);
                 if (focused) selectApp(pkg, name);
             });
