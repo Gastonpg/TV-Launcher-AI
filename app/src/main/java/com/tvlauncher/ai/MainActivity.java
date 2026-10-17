@@ -49,7 +49,7 @@ import java.util.concurrent.Executors;
 public class MainActivity extends Activity {
     private final int white = Color.WHITE;
     private final int muted = Color.rgb(204, 213, 230);
-    private final int blue = Color.rgb(130, 184, 255);
+    private int blue = Color.rgb(130, 184, 255);
     private final int cardColor = Color.argb(225, 24, 33, 51);
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService executor = Executors.newFixedThreadPool(3);
@@ -79,6 +79,7 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         tmdbKey = prefs().getString("tmdb_key", "").trim();
+        blue = prefs().getInt("accent_color", Color.rgb(130, 184, 255));
         customWallpaperUri = prefs().getString("wallpaper_uri", "");
         buildUi();
         loadApps();
@@ -114,8 +115,8 @@ public class MainActivity extends Activity {
 
         LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
         TextView logo = text("PG", 21, white, true); logo.setGravity(Gravity.CENTER);
-        GradientDrawable logoBg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xff17233a, 0xff263f68});
-        logoBg.setCornerRadius(dp(13)); logoBg.setStroke(dp(2), 0xff82b8ff); logo.setBackground(logoBg);
+        GradientDrawable logoBg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xff17233a, blendColor(blue, Color.BLACK, 0.55f)});
+        logoBg.setCornerRadius(dp(13)); logoBg.setStroke(dp(2), blue); logo.setBackground(logoBg);
         header.addView(logo, new LinearLayout.LayoutParams(dp(54), dp(48)));
         TextView brand = text("TV LAUNCHER PG", 18, white, true);
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-2, -2); bp.leftMargin = dp(13); header.addView(brand, bp);
@@ -173,8 +174,8 @@ public class MainActivity extends Activity {
     private Button button(String label, boolean primary) {
         Button b = new Button(this); b.setText(label); b.setAllCaps(false); b.setTextSize(13); b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         b.setTextColor(primary ? Color.rgb(10,17,29) : white); b.setPadding(dp(13),0,dp(13),0); b.setFocusable(true);
-        GradientDrawable normal = new GradientDrawable(); normal.setCornerRadius(dp(13)); normal.setColor(primary ? 0xff82b8ff : 0xb8293854);
-        GradientDrawable focused = new GradientDrawable(); focused.setCornerRadius(dp(13)); focused.setColor(primary ? 0xffb2d4ff : 0xff354b70); focused.setStroke(dp(2), 0xffdceaff);
+        GradientDrawable normal = new GradientDrawable(); normal.setCornerRadius(dp(13)); normal.setColor(primary ? blue : 0xb8293854);
+        GradientDrawable focused = new GradientDrawable(); focused.setCornerRadius(dp(13)); focused.setColor(primary ? blendColor(blue, Color.WHITE, 0.28f) : 0xff354b70); focused.setStroke(dp(2), 0xffdceaff);
         StateListDrawable states = new StateListDrawable(); states.addState(new int[]{android.R.attr.state_focused}, focused); states.addState(new int[]{}, normal); b.setBackground(states); return b;
     }
 
@@ -236,6 +237,7 @@ public class MainActivity extends Activity {
 
     private void refreshCatalog() {
         tmdbKey = prefs().getString("tmdb_key", "").trim();
+        blue = prefs().getInt("accent_color", Color.rgb(130, 184, 255));
         if (tmdbKey.isEmpty()) {
             statusText.setText("Catálogos online: configurá tu clave gratuita de TMDB.");
             addCatalogPlaceholder(movieRail, "Configurá TMDB para ver películas");
@@ -386,6 +388,7 @@ public class MainActivity extends Activity {
         String[] options = new String[] {
             "Elegir imagen de la TV Box",
             "Usar fondos cinematográficos automáticos",
+            "Cambiar color de la interfaz",
             "Configurar catálogo de películas y series (TMDB)",
             "Establecer como launcher predeterminado"
         };
@@ -394,11 +397,46 @@ public class MainActivity extends Activity {
             .setItems(options, (dialog, which) -> {
                 if (which == 0) chooseWallpaper();
                 else if (which == 1) useAutomaticWallpapers();
-                else if (which == 2) showCatalogSettings();
+                else if (which == 2) showAccentColorPicker();
+                else if (which == 3) showCatalogSettings();
                 else openHomeSettings();
             })
             .setNegativeButton("Cerrar", null)
             .show();
+    }
+
+    private void showAccentColorPicker() {
+        final String[] names = {"Azul hielo (predeterminado)", "Violeta", "Verde esmeralda", "Turquesa", "Rosa", "Rojo", "Naranja", "Dorado"};
+        final int[] colors = {
+            Color.rgb(130, 184, 255), Color.rgb(184, 145, 255), Color.rgb(100, 220, 160),
+            Color.rgb(75, 220, 220), Color.rgb(255, 130, 190), Color.rgb(255, 105, 105),
+            Color.rgb(255, 170, 90), Color.rgb(245, 205, 105)
+        };
+        new AlertDialog.Builder(this)
+            .setTitle("Color de la interfaz")
+            .setSingleChoiceItems(names, selectedColorIndex(colors), (dialog, which) -> {
+                blue = colors[which];
+                prefs().edit().putInt("accent_color", blue).apply();
+                dialog.dismiss();
+                Toast.makeText(this, "Color guardado", Toast.LENGTH_SHORT).show();
+                recreate();
+            })
+            .setNegativeButton("Cancelar", null)
+            .show();
+    }
+
+    private int selectedColorIndex(int[] colors) {
+        int saved = prefs().getInt("accent_color", Color.rgb(130, 184, 255));
+        for (int i = 0; i < colors.length; i++) if (colors[i] == saved) return i;
+        return 0;
+    }
+
+    private int blendColor(int foreground, int background, float ratio) {
+        float r = Math.max(0f, Math.min(1f, ratio));
+        int red = Math.round(Color.red(foreground) * (1f-r) + Color.red(background) * r);
+        int green = Math.round(Color.green(foreground) * (1f-r) + Color.green(background) * r);
+        int blueChannel = Math.round(Color.blue(foreground) * (1f-r) + Color.blue(background) * r);
+        return Color.rgb(red, green, blueChannel);
     }
 
     private void chooseWallpaper() {
