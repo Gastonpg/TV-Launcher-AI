@@ -132,8 +132,9 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, dp(54)); ap.topMargin = dp(9); content.addView(actions, ap);
 
         addSectionTitle(content, "TUS APLICACIONES");
-        HorizontalScrollView appsScroll = railScroll(); appRail = new LinearLayout(this); appRail.setOrientation(LinearLayout.HORIZONTAL);
-        appsScroll.addView(appRail, new HorizontalScrollView.LayoutParams(-2, -1)); content.addView(appsScroll, new LinearLayout.LayoutParams(-1, dp(106)));
+        HorizontalScrollView appsScroll = railScroll(); appsScroll.setClipChildren(false); appsScroll.setClipToPadding(false); appRail = new LinearLayout(this); appRail.setOrientation(LinearLayout.HORIZONTAL);
+        appRail.setClipChildren(false); appRail.setClipToPadding(false);
+        appsScroll.addView(appRail, new HorizontalScrollView.LayoutParams(-2, -1)); content.addView(appsScroll, new LinearLayout.LayoutParams(-1, dp(112)));
 
         addSectionTitle(content, "PELÍCULAS POPULARES");
         HorizontalScrollView moviesScroll = railScroll(); movieRail = new LinearLayout(this); movieRail.setOrientation(LinearLayout.HORIZONTAL);
@@ -227,19 +228,21 @@ public class MainActivity extends Activity {
             np.topMargin = dp(5);
             tile.addView(label, np);
 
-            // Smooth Google TV-style focus: a small, visible zoom without changing the layout.
+            // Google TV-style focus: the selected tile comes forward clearly, with a light parallax lift.
             tile.setPivotX(dp(70));
             tile.setPivotY(dp(50));
+            tile.setCameraDistance(dp(1200));
             tile.setOnFocusChangeListener((v, focused) -> {
                 v.animate().cancel();
                 v.animate()
-                        .scaleX(focused ? 1.09f : 1f)
-                        .scaleY(focused ? 1.09f : 1f)
-                        .translationZ(focused ? dp(8) : 0f)
-                        .setDuration(focused ? 190 : 150)
-                        .setInterpolator(new android.view.animation.DecelerateInterpolator())
+                        .scaleX(focused ? 1.18f : 1f)
+                        .scaleY(focused ? 1.18f : 1f)
+                        .translationY(focused ? -dp(8) : 0f)
+                        .translationZ(focused ? dp(18) : 0f)
+                        .setDuration(focused ? 230 : 170)
+                        .setInterpolator(new android.view.animation.DecelerateInterpolator(1.5f))
                         .start();
-                v.setElevation(focused ? dp(12) : 0);
+                v.setElevation(focused ? dp(20) : 0);
                 label.setTextColor(focused ? blue : white);
                 if (focused) selectApp(pkg, name);
             });
