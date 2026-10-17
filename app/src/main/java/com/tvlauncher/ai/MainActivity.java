@@ -193,14 +193,18 @@ public class MainActivity extends Activity {
             final String pkg = info.activityInfo.packageName; final String cls = info.activityInfo.name;
             final String name = String.valueOf(info.loadLabel(pm));
             LinearLayout tile = new LinearLayout(this); tile.setOrientation(LinearLayout.VERTICAL); tile.setGravity(Gravity.CENTER);
-            tile.setFocusable(true); tile.setClickable(true); tile.setPadding(dp(7),dp(6),dp(7),dp(6));
-            GradientDrawable bg = new GradientDrawable(); bg.setColor(cardColor); bg.setCornerRadius(dp(15)); tile.setBackground(bg);
-            ImageView icon = new ImageView(this); try { icon.setImageDrawable(info.loadIcon(pm)); } catch (Exception ignored) { }
-            tile.addView(icon, new LinearLayout.LayoutParams(dp(42),dp(42)));
+            tile.setFocusable(true); tile.setClickable(true); tile.setPadding(dp(3),dp(4),dp(3),dp(4));
+            // Keep app icons floating: no opaque card/square behind each icon.
+            tile.setBackgroundColor(Color.TRANSPARENT);
+            ImageView icon = new ImageView(this); icon.setBackgroundColor(Color.TRANSPARENT);
+            icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            try { icon.setImageDrawable(info.loadIcon(pm)); } catch (Exception ignored) { }
+            tile.addView(icon, new LinearLayout.LayoutParams(dp(50),dp(50)));
             TextView label = text(name, 11, white, true); label.setGravity(Gravity.CENTER); label.setMaxLines(1); label.setEllipsize(TextUtils.TruncateAt.END);
-            LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(dp(96),-2); np.topMargin = dp(4); tile.addView(label,np);
+            LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(dp(104),-2); np.topMargin = dp(5); tile.addView(label,np);
             tile.setOnFocusChangeListener((v, focused) -> {
-                v.setScaleX(focused ? 1.06f : 1f); v.setScaleY(focused ? 1.06f : 1f); v.setElevation(focused ? dp(8) : 0);
+                v.setScaleX(focused ? 1.09f : 1f); v.setScaleY(focused ? 1.09f : 1f); v.setElevation(focused ? dp(9) : 0);
+                label.setTextColor(focused ? blue : white);
                 if (focused) selectApp(pkg, name);
             });
             tile.setOnClickListener(v -> launchApp(pkg, cls));
@@ -479,16 +483,31 @@ public class MainActivity extends Activity {
     }
 
     private void openHomeSettings() {
+        // Some Android TV Box firmwares do not implement ACTION_HOME_SETTINGS.
+        // Show useful alternatives instead of silently doing nothing.
+        new AlertDialog.Builder(this)
+            .setTitle("Establecer launcher predeterminado")
+            .setMessage("Android debe permitir elegir la aplicación de inicio. En algunas TV Box esta pantalla está oculta por el fabricante. Probá estas opciones; si ninguna muestra el selector, revisaremos una alternativa mediante ADB.")
+            .setPositiveButton("Aplicaciones predeterminadas", (dialog, which) -> launchSettingsAction(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS,
+                "Buscá Aplicación de inicio o Home app."))
+            .setNeutralButton("Configuración de inicio", (dialog, which) -> launchSettingsAction(Settings.ACTION_HOME_SETTINGS,
+                "Buscá TV Launcher PG en la lista de aplicaciones de inicio."))
+            .setNegativeButton("Ajustes generales", (dialog, which) -> launchSettingsAction(Settings.ACTION_SETTINGS,
+                "Entrá en Aplicaciones y buscá la aplicación de inicio."))
+            .show();
+    }
+
+    private void launchSettingsAction(String action, String guidance) {
         try {
-            startActivity(new Intent(Settings.ACTION_HOME_SETTINGS));
-        } catch (Exception e) {
-            try {
-                startActivity(new Intent(Settings.ACTION_SETTINGS));
-                Toast.makeText(this, "En Ajustes, buscá Aplicaciones predeterminadas o Aplicación de inicio.", Toast.LENGTH_LONG).show();
-            } catch (Exception ignored) {
-                Toast.makeText(this, "Mantené presionado HOME en el control y elegí TV Launcher PG si aparece.", Toast.LENGTH_LONG).show();
+            Intent intent = new Intent(action);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            if (intent.resolveActivity(getPackageManager()) != null) {
+                startActivity(intent);
+                Toast.makeText(this, guidance, Toast.LENGTH_LONG).show();
+                return;
             }
-        }
+        } catch (Exception ignored) { }
+        Toast.makeText(this, "Esta pantalla no está disponible en el firmware. Probá otra opción o avisame y revisamos ADB.", Toast.LENGTH_LONG).show();
     }
 
     private void showCatalogSettings() {
