@@ -438,7 +438,7 @@ public class MainActivity extends Activity {
             .show();
     }
 
-    private GradientDrawable buttonGlassBackground(boolean primary) {
+    private Drawable buttonGlassBackground(boolean primary) {
         GradientDrawable normal = glassDrawable(primary ? blendColor(blue, 0xff152236, 0.58f) : 0x66232f45, 0x66ffffff, 13);
         GradientDrawable focused = glassDrawable(blendColor(blue, 0xff17283e, 0.28f), 0xffdceaff, 13);
         focused.setStroke(dp(2), blue);
