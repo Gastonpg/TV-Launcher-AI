@@ -21,8 +21,8 @@ public class BootReceiver extends BroadcastReceiver {
         final Context appContext = context.getApplicationContext();
         new Thread(() -> {
             try {
-                // Let the system launcher and TV services finish starting first.
-                Thread.sleep(7000L);
+                // Launch as soon as Android broadcasts that boot has completed.
+                // There is no extra artificial delay; Android/firmware startup timing still applies.
                 Intent launch = new Intent(appContext, MainActivity.class);
                 launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK
                         | Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -34,8 +34,6 @@ public class BootReceiver extends BroadcastReceiver {
                 } else {
                     appContext.startActivity(launch);
                 }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
             } catch (Exception ignored) {
                 // Some TV-box firmwares block activity launches during boot.
             } finally {

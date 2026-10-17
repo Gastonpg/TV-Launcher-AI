@@ -10,8 +10,8 @@ android {
         applicationId 'com.tvlaunch.pg'
         minSdk 28
         targetSdk 28
-        versionCode 7
-        versionName '2.4-wallpaper-adaptive-glass'
+        versionCode 8
+        versionName '2.5-instant-boot'
         ndk { abiFilters 'armeabi-v7a' }
     }
 
