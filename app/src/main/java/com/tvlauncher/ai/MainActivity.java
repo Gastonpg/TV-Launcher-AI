@@ -10,6 +10,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.net.Uri;
@@ -79,7 +80,6 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         tmdbKey = prefs().getString("tmdb_key", "").trim();
-        blue = prefs().getInt("accent_color", Color.rgb(130, 184, 255));
         customWallpaperUri = prefs().getString("wallpaper_uri", "");
         buildUi();
         loadApps();
@@ -98,15 +98,6 @@ public class MainActivity extends Activity {
         root.setBackgroundColor(Color.rgb(10, 13, 21));
         heroImage = new ImageView(this); heroImage.setScaleType(ImageView.ScaleType.CENTER_CROP);
         root.addView(heroImage, new FrameLayout.LayoutParams(-1, -1));
-        View shade = new View(this);
-        shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                new int[]{Color.rgb(8,11,18), Color.argb(225,8,11,18), Color.argb(145,8,11,18), Color.argb(90,8,11,18)}));
-        root.addView(shade, new FrameLayout.LayoutParams(-1, -1));
-        View bottomShade = new View(this);
-        bottomShade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{Color.TRANSPARENT, Color.argb(205,8,11,18), Color.rgb(8,11,18)}));
-        root.addView(bottomShade, new FrameLayout.LayoutParams(-1, dp(500), Gravity.BOTTOM));
-
         ScrollView page = new ScrollView(this); page.setFillViewport(false); page.setClipToPadding(false);
         LinearLayout content = new LinearLayout(this); content.setOrientation(LinearLayout.VERTICAL);
         content.setPadding(dp(38), dp(22), dp(38), dp(24));
@@ -114,7 +105,7 @@ public class MainActivity extends Activity {
         root.addView(page, new FrameLayout.LayoutParams(-1, -1));
 
         LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
-        TextView logo = text("PG", 21, white, true); logo.setGravity(Gravity.CENTER);
+        TextView logo = text("PG", 21, white, true); logo.setGravity(Gravity.CENTER); logo.setTag("pg_logo");
         GradientDrawable logoBg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xff17233a, blendColor(blue, Color.BLACK, 0.55f)});
         logoBg.setCornerRadius(dp(13)); logoBg.setStroke(dp(2), blue); logo.setBackground(logoBg);
         header.addView(logo, new LinearLayout.LayoutParams(dp(54), dp(48)));
@@ -128,7 +119,7 @@ public class MainActivity extends Activity {
         content.addView(header, new LinearLayout.LayoutParams(-1, dp(56)));
 
         View gap = new View(this); content.addView(gap, new LinearLayout.LayoutParams(1, dp(55)));
-        content.addView(text("DESTACADO PARA VOS", 13, blue, true));
+        TextView featuredLabel = text("DESTACADO PARA VOS", 13, blue, true); featuredLabel.setTag("accent_label"); content.addView(featuredLabel);
         heroTitle = text("Tu pantalla, tu mundo", 34, white, true);
         LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2); tp.topMargin = dp(7); content.addView(heroTitle, tp);
         heroDescription = text("Tus aplicaciones y recomendaciones en un solo lugar.", 15, muted, false); heroDescription.setMaxLines(3);
@@ -174,10 +165,8 @@ public class MainActivity extends Activity {
     private Button button(String label, boolean primary) {
         Button b = new Button(this); b.setText(label); b.setAllCaps(false); b.setTextSize(13); b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         b.setTextColor(primary ? Color.rgb(10,17,29) : white); b.setPadding(dp(13),0,dp(13),0); b.setFocusable(true);
-        GradientDrawable normal = glassDrawable(primary ? blendColor(blue, 0xff152236, 0.58f) : 0x66232f45, 0x66ffffff, 13);
-        GradientDrawable focused = glassDrawable(blendColor(blue, 0xff17283e, 0.28f), 0xffdceaff, 13);
-        focused.setStroke(dp(2), blue);
-        StateListDrawable states = new StateListDrawable(); states.addState(new int[]{android.R.attr.state_focused}, focused); states.addState(new int[]{}, normal); b.setBackground(states); return b;
+        b.setTag(primary ? "primary_button" : "secondary_button");
+        b.setBackground(buttonGlassBackground(primary)); return b;
     }
 
     private void loadApps() {
@@ -210,6 +199,7 @@ public class MainActivity extends Activity {
             StateListDrawable cardStates = new StateListDrawable();
             cardStates.addState(new int[]{android.R.attr.state_focused}, focusedCard);
             cardStates.addState(new int[]{}, normalCard);
+            card.setTag("app_card");
             card.setBackground(cardStates);
             card.setClipToPadding(false);
             card.setClipToOutline(true);
@@ -273,14 +263,13 @@ public class MainActivity extends Activity {
         executor.execute(() -> {
             try {
                 Bitmap bmp = getBitmap("https://image.tmdb.org/t/p/w1280" + path);
-                handler.post(() -> { if (bmp != null && token == backdropToken) heroImage.setImageBitmap(bmp); });
+                handler.post(() -> { if (bmp != null && token == backdropToken) applyHeroBitmap(bmp); });
             } catch (Exception ignored) { }
         });
     }
 
     private void refreshCatalog() {
         tmdbKey = prefs().getString("tmdb_key", "").trim();
-        blue = prefs().getInt("accent_color", Color.rgb(130, 184, 255));
         if (tmdbKey.isEmpty()) {
             statusText.setText("Catálogos online: configurá tu clave gratuita de TMDB.");
             addCatalogPlaceholder(movieRail, "Configurá TMDB para ver películas");
@@ -338,7 +327,7 @@ public class MainActivity extends Activity {
                 String imageUrl="https://image.tmdb.org/t/p/w342"+poster;
                 executor.execute(() -> { try { Bitmap bmp=getBitmap(imageUrl); handler.post(() -> { if(bmp!=null) image.setImageBitmap(bmp); }); } catch(Exception ignored){} });
             }
-            card.setOnFocusChangeListener((v, focused) -> { v.setScaleX(focused?1.04f:1f); v.setScaleY(focused?1.04f:1f); if(focused){heroTitle.setText(title); heroDescription.setText(overview.isEmpty()?"Explorá este título en tus aplicaciones instaladas.":overview); if(!hasCustomWallpaper() && !poster.isEmpty()) { final int token=++backdropToken; executor.execute(() -> { try { Bitmap bmp=getBitmap("https://image.tmdb.org/t/p/w1280"+item.optString("backdrop_path", "")); handler.post(() -> { if(bmp!=null && token==backdropToken) heroImage.setImageBitmap(bmp); }); } catch(Exception ignored){} }); } } });
+            card.setOnFocusChangeListener((v, focused) -> { v.setScaleX(focused?1.04f:1f); v.setScaleY(focused?1.04f:1f); if(focused){heroTitle.setText(title); heroDescription.setText(overview.isEmpty()?"Explorá este título en tus aplicaciones instaladas.":overview); if(!hasCustomWallpaper() && !poster.isEmpty()) { final int token=++backdropToken; executor.execute(() -> { try { Bitmap bmp=getBitmap("https://image.tmdb.org/t/p/w1280"+item.optString("backdrop_path", "")); handler.post(() -> { if(bmp!=null && token==backdropToken) applyHeroBitmap(bmp); }); } catch(Exception ignored){} }); } } });
             card.setOnClickListener(v -> showMediaDetails(title, overview, tv));
         }
     }
@@ -383,14 +372,14 @@ public class MainActivity extends Activity {
             heroTitle.setText(item.optString("title",item.optString("name","Contenido destacado")));
             heroDescription.setText(item.optString("overview","Una recomendación para descubrir."));
             String path=item.optString("backdrop_path","");
-            if(!path.isEmpty()) { final int token=++backdropToken; executor.execute(() -> { try { Bitmap bmp=getBitmap("https://image.tmdb.org/t/p/w1280"+path); handler.post(() -> {if(bmp!=null && token==backdropToken) heroImage.setImageBitmap(bmp);}); }catch(Exception ignored){} }); }
+            if(!path.isEmpty()) { final int token=++backdropToken; executor.execute(() -> { try { Bitmap bmp=getBitmap("https://image.tmdb.org/t/p/w1280"+path); handler.post(() -> {if(bmp!=null && token==backdropToken) applyHeroBitmap(bmp);}); }catch(Exception ignored){} }); }
         } else showFallback("Fondos cinematográficos online · configurá TMDB para catálogos reales.");
     }
 
     private void showFallback(String message) {
         if (applyCustomWallpaper()) { statusText.setText("Fondo personalizado fijo"); return; }
         final int index = fallbackIndex++ % fallbackImages.length; final int token=++backdropToken;
-        executor.execute(() -> { try { Bitmap bmp=getBitmap(fallbackImages[index]); handler.post(() -> { if(bmp!=null && token==backdropToken) heroImage.setImageBitmap(bmp); if(selectedAppName.isEmpty()){ heroTitle.setText(new String[]{"Una noche de cine","Tu próxima aventura","Historias para descubrir","El espectáculo empieza acá","Tu pantalla, tu mundo","Un universo por explorar"}[index]); heroDescription.setText("Fondos cinematográficos online que cambian al elegir otro destacado."); } statusText.setText(message); }); } catch(Exception ignored) { handler.post(() -> statusText.setText("Sin conexión con las imágenes. Revisá internet.")); } });
+        executor.execute(() -> { try { Bitmap bmp=getBitmap(fallbackImages[index]); handler.post(() -> { if(bmp!=null && token==backdropToken) applyHeroBitmap(bmp); if(selectedAppName.isEmpty()){ heroTitle.setText(new String[]{"Una noche de cine","Tu próxima aventura","Historias para descubrir","El espectáculo empieza acá","Tu pantalla, tu mundo","Un universo por explorar"}[index]); heroDescription.setText("Fondos cinematográficos online que cambian al elegir otro destacado."); } statusText.setText(message); }); } catch(Exception ignored) { handler.post(() -> statusText.setText("Sin conexión con las imágenes. Revisá internet.")); } });
     }
 
     private JSONObject getJson(String urlText) throws Exception {
@@ -415,6 +404,8 @@ public class MainActivity extends Activity {
         try {
             heroImage.setImageURI(Uri.parse(customWallpaperUri));
             if (heroImage.getDrawable() != null) {
+                Drawable current = heroImage.getDrawable();
+                if (current instanceof BitmapDrawable) updateAccentFromBitmap(((BitmapDrawable) current).getBitmap());
                 statusTextIfReady("Fondo personalizado fijo");
                 return true;
             }
@@ -432,7 +423,6 @@ public class MainActivity extends Activity {
         String[] options = new String[] {
             "Elegir imagen de la TV Box",
             "Usar fondos cinematográficos automáticos",
-            "Cambiar color de la interfaz",
             "Configurar catálogo de películas y series (TMDB)",
             "Establecer como launcher predeterminado"
         };
@@ -441,38 +431,73 @@ public class MainActivity extends Activity {
             .setItems(options, (dialog, which) -> {
                 if (which == 0) chooseWallpaper();
                 else if (which == 1) useAutomaticWallpapers();
-                else if (which == 2) showAccentColorPicker();
-                else if (which == 3) showCatalogSettings();
+                else if (which == 2) showCatalogSettings();
                 else openHomeSettings();
             })
             .setNegativeButton("Cerrar", null)
             .show();
     }
 
-    private void showAccentColorPicker() {
-        final String[] names = {"Azul hielo (predeterminado)", "Violeta", "Verde esmeralda", "Turquesa", "Rosa", "Rojo", "Naranja", "Dorado"};
-        final int[] colors = {
-            Color.rgb(130, 184, 255), Color.rgb(184, 145, 255), Color.rgb(100, 220, 160),
-            Color.rgb(75, 220, 220), Color.rgb(255, 130, 190), Color.rgb(255, 105, 105),
-            Color.rgb(255, 170, 90), Color.rgb(245, 205, 105)
-        };
-        new AlertDialog.Builder(this)
-            .setTitle("Color de la interfaz")
-            .setSingleChoiceItems(names, selectedColorIndex(colors), (dialog, which) -> {
-                blue = colors[which];
-                prefs().edit().putInt("accent_color", blue).apply();
-                dialog.dismiss();
-                Toast.makeText(this, "Color guardado", Toast.LENGTH_SHORT).show();
-                recreate();
-            })
-            .setNegativeButton("Cancelar", null)
-            .show();
+    private GradientDrawable buttonGlassBackground(boolean primary) {
+        GradientDrawable normal = glassDrawable(primary ? blendColor(blue, 0xff152236, 0.58f) : 0x66232f45, 0x66ffffff, 13);
+        GradientDrawable focused = glassDrawable(blendColor(blue, 0xff17283e, 0.28f), 0xffdceaff, 13);
+        focused.setStroke(dp(2), blue);
+        StateListDrawable states = new StateListDrawable();
+        states.addState(new int[]{android.R.attr.state_focused}, focused);
+        states.addState(new int[]{}, normal);
+        return states;
     }
 
-    private int selectedColorIndex(int[] colors) {
-        int saved = prefs().getInt("accent_color", Color.rgb(130, 184, 255));
-        for (int i = 0; i < colors.length; i++) if (colors[i] == saved) return i;
-        return 0;
+    private void applyHeroBitmap(Bitmap bitmap) {
+        if (bitmap == null || heroImage == null) return;
+        heroImage.setImageBitmap(bitmap);
+        updateAccentFromBitmap(bitmap);
+    }
+
+    // Extract a vivid but soft accent from the current wallpaper; no manual palette needed.
+    private void updateAccentFromBitmap(Bitmap bitmap) {
+        if (bitmap == null || bitmap.isRecycled()) return;
+        try {
+            Bitmap small = Bitmap.createScaledBitmap(bitmap, 32, 32, true);
+            int[] pixels = new int[32 * 32];
+            small.getPixels(pixels, 0, 32, 0, 0, 32, 32);
+            float bestScore = -1f, chosenHue = 210f;
+            for (int pixel : pixels) {
+                float[] hsv = new float[3];
+                Color.colorToHSV(pixel, hsv);
+                float saturation = hsv[1], value = hsv[2];
+                if (value < 0.24f || value > 0.96f || saturation < 0.18f) continue;
+                float score = saturation * (1f - Math.abs(value - 0.62f));
+                if (score > bestScore) { bestScore = score; chosenHue = hsv[0]; }
+            }
+            if (small != bitmap) small.recycle();
+            float[] accent = new float[]{chosenHue, bestScore < 0 ? 0.28f : 0.52f, 0.98f};
+            int extracted = Color.HSVToColor(accent);
+            if (Color.red(blue) == Color.red(extracted) && Color.green(blue) == Color.green(extracted) && Color.blue(blue) == Color.blue(extracted)) return;
+            blue = extracted;
+            refreshAccentViews(getWindow().getDecorView());
+        } catch (Exception ignored) { }
+    }
+
+    private void refreshAccentViews(View view) {
+        Object tag = view.getTag();
+        if ("accent_label".equals(tag) && view instanceof TextView) ((TextView) view).setTextColor(blue);
+        else if ("pg_logo".equals(tag) && view instanceof TextView) {
+            GradientDrawable logoBg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xff17233a, blendColor(blue, Color.BLACK, 0.55f)});
+            logoBg.setCornerRadius(dp(13)); logoBg.setStroke(dp(2), blue); view.setBackground(logoBg);
+        } else if ("primary_button".equals(tag) && view instanceof Button) ((Button) view).setBackground(buttonGlassBackground(true));
+        else if ("secondary_button".equals(tag) && view instanceof Button) ((Button) view).setBackground(buttonGlassBackground(false));
+        else if ("app_card".equals(tag)) {
+            GradientDrawable normalCard = glassDrawable(0x55202d43, 0x66ffffff, 15);
+            GradientDrawable focusedCard = glassDrawable(blendColor(blue, 0xff20334c, 0.48f), 0xffd9ebff, 15);
+            focusedCard.setStroke(dp(2), blue);
+            StateListDrawable states = new StateListDrawable(); states.addState(new int[]{android.R.attr.state_focused}, focusedCard); states.addState(new int[]{}, normalCard);
+            view.setBackground(states);
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) refreshAccentViews(group.getChildAt(i));
+        }
     }
 
     // Translucent gradient + fine light border: lightweight Liquid Glass styling for Android 9.
