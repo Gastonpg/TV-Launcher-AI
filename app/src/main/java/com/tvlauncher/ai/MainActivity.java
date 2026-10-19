@@ -231,18 +231,14 @@ public class MainActivity extends Activity {
             // Google TV-style focus: the selected tile comes forward clearly, with a light parallax lift.
             tile.setPivotX(dp(70));
             tile.setPivotY(dp(50));
-            tile.setCameraDistance(dp(1200));
             tile.setOnFocusChangeListener((v, focused) -> {
                 v.animate().cancel();
                 v.animate()
-                        .scaleX(focused ? 1.18f : 1f)
-                        .scaleY(focused ? 1.18f : 1f)
-                        .translationY(focused ? -dp(8) : 0f)
-                        .translationZ(focused ? dp(18) : 0f)
-                        .setDuration(focused ? 230 : 170)
-                        .setInterpolator(new android.view.animation.DecelerateInterpolator(1.5f))
+                        .scaleX(focused ? 1.15f : 1f)
+                        .scaleY(focused ? 1.15f : 1f)
+                        .translationY(focused ? -dp(6) : 0f)
+                        .setDuration(focused ? 150 : 110)
                         .start();
-                v.setElevation(focused ? dp(20) : 0);
                 label.setTextColor(focused ? blue : white);
                 if (focused) selectApp(pkg, name);
             });
@@ -402,9 +398,33 @@ public class MainActivity extends Activity {
 
     private Bitmap getBitmap(String urlText) throws Exception {
         if (urlText == null || urlText.isEmpty()) return null;
-        HttpURLConnection connection=(HttpURLConnection)new URL(urlText).openConnection(); connection.setConnectTimeout(9000); connection.setReadTimeout(10000); connection.setRequestProperty("User-Agent","TVLauncherPG/2.0");
-        try(InputStream in=connection.getInputStream()) { BitmapFactory.Options options=new BitmapFactory.Options(); options.inSampleSize=1; return BitmapFactory.decodeStream(in,null,options); }
-        finally { connection.disconnect(); }
+        byte[] data;
+        HttpURLConnection connection = (HttpURLConnection) new URL(urlText).openConnection();
+        connection.setConnectTimeout(9000);
+        connection.setReadTimeout(10000);
+        connection.setRequestProperty("User-Agent", "TVLauncherPG/2.0");
+        try (InputStream in = connection.getInputStream(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[8192];
+            int n;
+            int total = 0;
+            while ((n = in.read(buffer)) > 0) {
+                total += n;
+                if (total > 6 * 1024 * 1024) throw new java.io.IOException("Imagen demasiado grande");
+                out.write(buffer, 0, n);
+            }
+            data = out.toByteArray();
+        } finally {
+            connection.disconnect();
+        }
+        BitmapFactory.Options bounds = new BitmapFactory.Options();
+        bounds.inJustDecodeBounds = true;
+        BitmapFactory.decodeByteArray(data, 0, data.length, bounds);
+        int sample = 1;
+        while (bounds.outWidth / (sample * 2) >= 1280) sample *= 2;
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inSampleSize = sample;
+        options.inPreferredConfig = Bitmap.Config.RGB_565;
+        return BitmapFactory.decodeByteArray(data, 0, data.length, options);
     }
 
     private boolean hasCustomWallpaper() {
@@ -414,10 +434,10 @@ public class MainActivity extends Activity {
     private boolean applyCustomWallpaper() {
         if (!hasCustomWallpaper() || heroImage == null) return false;
         try {
-            heroImage.setImageURI(Uri.parse(customWallpaperUri));
-            if (heroImage.getDrawable() != null) {
-                Drawable current = heroImage.getDrawable();
-                if (current instanceof BitmapDrawable) updateAccentFromBitmap(((BitmapDrawable) current).getBitmap());
+            Bitmap bmp = decodeUriScaled(Uri.parse(customWallpaperUri));
+            if (bmp != null) {
+                heroImage.setImageBitmap(bmp);
+                updateAccentFromBitmap(bmp);
                 statusTextIfReady("Fondo personalizado fijo");
                 return true;
             }
@@ -425,6 +445,22 @@ public class MainActivity extends Activity {
         customWallpaperUri = "";
         prefs().edit().remove("wallpaper_uri").apply();
         return false;
+    }
+
+    private Bitmap decodeUriScaled(Uri uri) throws Exception {
+        BitmapFactory.Options bounds = new BitmapFactory.Options();
+        bounds.inJustDecodeBounds = true;
+        try (InputStream in = getContentResolver().openInputStream(uri)) {
+            BitmapFactory.decodeStream(in, null, bounds);
+        }
+        int sample = 1;
+        while (bounds.outWidth / (sample * 2) >= 1280) sample *= 2;
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inSampleSize = sample;
+        options.inPreferredConfig = Bitmap.Config.RGB_565;
+        try (InputStream in = getContentResolver().openInputStream(uri)) {
+            return BitmapFactory.decodeStream(in, null, options);
+        }
     }
 
     private void statusTextIfReady(String value) {
@@ -485,7 +521,9 @@ public class MainActivity extends Activity {
             if (small != bitmap) small.recycle();
             float[] accent = new float[]{chosenHue, bestScore < 0 ? 0.28f : 0.52f, 0.98f};
             int extracted = Color.HSVToColor(accent);
-            if (Color.red(blue) == Color.red(extracted) && Color.green(blue) == Color.green(extracted) && Color.blue(blue) == Color.blue(extracted)) return;
+            if (Math.abs(Color.red(blue) - Color.red(extracted))
+                    + Math.abs(Color.green(blue) - Color.green(extracted))
+                    + Math.abs(Color.blue(blue) - Color.blue(extracted)) < 60) return;
             blue = extracted;
             refreshAccentViews(getWindow().getDecorView());
         } catch (Exception ignored) { }
