@@ -434,7 +434,6 @@ private final Runnable weatherLoop = new Runnable() {
             Drawable appIcon = null;
             Drawable appBanner = null;
             try { appIcon = info.loadIcon(pm); } catch (Exception ignored) { }
-            try { appBanner = info.loadBanner(pm); } catch (Exception ignored) { }
             if (appBanner == null) {
                 try {
                     if (info.activityInfo.banner != 0) {
