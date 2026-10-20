@@ -631,27 +631,7 @@ private final Runnable weatherLoop = new Runnable() {
     }
 
     private void changeFeatured() {
-        if (hasCustomWallpaper()) {
-            if (!trending.isEmpty()) {
-                int index = (int)(System.currentTimeMillis() % trending.size());
-                JSONObject item = trending.get(index);
-                heroTitle.setText(item.optString("title", item.optString("name", "Contenido destacado")));
-                heroDescription.setText(item.optString("overview", "Una recomendación para descubrir."));
-            } else {
-                fallbackIndex++;
-                heroTitle.setText(new String[]{"Una noche de cine", "Tu próxima aventura", "Historias para descubrir", "El espectáculo empieza acá", "Tu pantalla, tu mundo", "Un universo por explorar"}[fallbackIndex % fallbackImages.length]);
-                heroDescription.setText("Fondo propio activado · elegí fondos automáticos desde Personalizar.");
-            }
-            statusText.setText("Fondo personalizado fijo");
-            return;
-        }
-        if (!trending.isEmpty()) {
-            int index = (int)(System.currentTimeMillis() % trending.size()); JSONObject item = trending.get(index);
-            heroTitle.setText(item.optString("title",item.optString("name","Contenido destacado")));
-            heroDescription.setText(item.optString("overview","Una recomendación para descubrir."));
-            String path=item.optString("backdrop_path","");
-            if(!path.isEmpty()) { final int token=++backdropToken; executor.execute(() -> { try { Bitmap bmp=getBitmap("https://image.tmdb.org/t/p/w1280"+path); handler.post(() -> {if(bmp!=null && token==backdropToken) applyHeroBitmap(bmp);}); }catch(Exception ignored){} }); }
-        } else showFallback("Fondos cinematográficos online · configurá TMDB para catálogos reales.");
+        showRandomFeaturedPoster();
     }
 
     private void showFallback(String message) {
