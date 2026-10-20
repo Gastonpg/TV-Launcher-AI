@@ -151,29 +151,31 @@ private final Runnable weatherLoop = new Runnable() {
     // ---- Cabecera: hora/clima en la fila superior y pestañas debajo ----
     LinearLayout topBar = new LinearLayout(this);
     topBar.setGravity(Gravity.CENTER_VERTICAL);
-    TextView logo = text("PG", 18, white, true);
-    logo.setGravity(Gravity.CENTER);
-    logo.setTag("pg_logo");
-    GradientDrawable logoBg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-            new int[]{0xff17233a, blendColor(blue, Color.BLACK, 0.55f)});
-    logoBg.setCornerRadius(dp(12));
-    logoBg.setStroke(dp(2), blue);
-    logo.setBackground(logoBg);
-    topBar.addView(logo, new LinearLayout.LayoutParams(dp(46), dp(40)));
+
+    // Widget propio conservado: hora y clima en cristal discreto a la izquierda.
+    topBar.addView(buildWeatherWidget(), new LinearLayout.LayoutParams(-2, -2));
 
     View spacer = new View(this);
     topBar.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1));
-    Button systemSettings = button("⚙ Ajustes", false);
-    systemSettings.setOnClickListener(v -> openSystemSettings());
-    topBar.addView(systemSettings, new LinearLayout.LayoutParams(-2, dp(44)));
-    Button config = button("Personalizar", true);
+
+    // Identidad del launcher arriba a la derecha, junto al engranaje.
+    TextView logo = text("TV LAUNCHER PG", 15, white, true);
+    logo.setGravity(Gravity.CENTER);
+    logo.setTag("pg_logo");
+    LinearLayout.LayoutParams logoParams = new LinearLayout.LayoutParams(-2, dp(42));
+    logoParams.rightMargin = dp(12);
+    topBar.addView(logo, logoParams);
+
+    Button config = button("Personalizar", false);
     config.setOnClickListener(v -> showPersonalizationMenu());
-    LinearLayout.LayoutParams configParams = new LinearLayout.LayoutParams(-2, dp(44));
-    configParams.leftMargin = dp(8);
+    LinearLayout.LayoutParams configParams = new LinearLayout.LayoutParams(-2, dp(42));
+    configParams.rightMargin = dp(8);
     topBar.addView(config, configParams);
-    LinearLayout.LayoutParams weatherParams = new LinearLayout.LayoutParams(-2, -2);
-    weatherParams.leftMargin = dp(14);
-    topBar.addView(buildWeatherWidget(), weatherParams);
+
+    Button systemSettings = button("⚙", false);
+    systemSettings.setContentDescription("Ajustes del dispositivo");
+    systemSettings.setOnClickListener(v -> openSystemSettings());
+    topBar.addView(systemSettings, new LinearLayout.LayoutParams(dp(48), dp(42)));
     column.addView(topBar, new LinearLayout.LayoutParams(-1, dp(56)));
 
     LinearLayout tabsRow = new LinearLayout(this);
@@ -990,7 +992,7 @@ private final Runnable weatherLoop = new Runnable() {
         FrameLayout card = new FrameLayout(this);
         card.setBackground(mediaCardBackground());
         card.setClipToOutline(true);
-        outer.addView(card, new FrameLayout.LayoutParams(-1, -1));
+        outer.addView(card, new FrameLayout.LayoutParams(dp(252), dp(142), Gravity.CENTER));
 
         ImageView image = new ImageView(this);
         image.setScaleType(ImageView.ScaleType.CENTER_CROP);
@@ -1009,10 +1011,9 @@ private final Runnable weatherLoop = new Runnable() {
         label.setPadding(dp(12), 0, dp(10), dp(10));
         card.addView(label, new FrameLayout.LayoutParams(-1, dp(52), Gravity.BOTTOM));
 
-        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(dp(252), dp(142));
-        cardParams.rightMargin = dp(12);
-        outer.addView(card, cardParams);
-        rail.addView(outer, new LinearLayout.LayoutParams(dp(260), dp(150)));
+        LinearLayout.LayoutParams outerParams = new LinearLayout.LayoutParams(dp(260), dp(150));
+        outerParams.rightMargin = dp(12);
+        rail.addView(outer, outerParams);
         loadImageInto(image, "https://image.tmdb.org/t/p/w500" + backdrop, shown * 70L);
 
         outer.setOnFocusChangeListener((v, focused) -> {
