@@ -238,13 +238,15 @@ private final Runnable weatherLoop = new Runnable() {
     pageScroll.addView(rows, new ScrollView.LayoutParams(-1, -2));
     column.addView(pageScroll, new LinearLayout.LayoutParams(-1, 0, 1f));
 
+    // Primera fila: catálogo cinematográfico de TMDB, con fondos panorámicos.
+    forYouTitle = addSectionHeader(rows, "PELÍCULAS Y SERIES");
+    forYouRail = addRail(rows, 176);
+    // Segunda fila: aplicaciones instaladas, con tarjetas más compactas.
     appsTitle = addSectionHeader(rows, "TUS APLICACIONES");
     appRail = addRail(rows, 124);
-    forYouTitle = addSectionHeader(rows, "PARA VOS");
-    forYouRail = addRail(rows, 168);
-    moviesTitle = addSectionHeader(rows, "PELÍCULAS POPULARES");
+    moviesTitle = addSectionHeader(rows, "PELÍCULAS");
     movieRail = addRail(rows, 220);
-    seriesTitle = addSectionHeader(rows, "SERIES POPULARES");
+    seriesTitle = addSectionHeader(rows, "SERIES");
     seriesRail = addRail(rows, 220);
 
     statusText = text("Android 9 · optimizado para TV Box · PG", 11, Color.rgb(160, 173, 195), false);
