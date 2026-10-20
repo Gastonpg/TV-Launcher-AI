@@ -8,6 +8,7 @@ on:
       - master
       - mejoras-fluidez
       - rediseno-google-tv
+      - google-tv-replica-from-scratch
 
 jobs:
   build:
