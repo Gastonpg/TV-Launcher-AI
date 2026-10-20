@@ -272,6 +272,16 @@ private final Runnable weatherLoop = new Runnable() {
         logo.setSingleLine(true);
         logo.setEllipsize(TextUtils.TruncateAt.END);
         logo.setPadding(dp(12), 0, 0, 0);
+        logo.setFocusable(true);
+        logo.setClickable(true);
+        logo.setContentDescription("Abrir ajustes del dispositivo");
+        logo.setOnClickListener(v -> openSystemSettings());
+        logo.setOnFocusChangeListener((v, focused) -> {
+            logo.setTextColor(focused ? 0xffdceaff : white);
+            logo.animate().cancel();
+            logo.animate().scaleX(focused ? 1.035f : 1f).scaleY(focused ? 1.035f : 1f)
+                    .setDuration(focused ? 150 : 110).start();
+        });
         LinearLayout.LayoutParams logoLp = new LinearLayout.LayoutParams(dp(126), dp(44));
         logoLp.leftMargin = dp(4);
         nav.addView(logo, logoLp);
@@ -435,13 +445,13 @@ private final Runnable weatherLoop = new Runnable() {
             try { icon.setImageDrawable(info.loadIcon(pm)); } catch (Exception ignored) { }
             FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(38), dp(38), Gravity.CENTER);
             tileFace.addView(icon, iconParams);
-            tile.addView(tileFace, new LinearLayout.LayoutParams(dp(104), dp(62)));
+            tile.addView(tileFace, new LinearLayout.LayoutParams(dp(124), dp(64)));
 
             TextView label = text(name, 12, white, true);
             label.setGravity(Gravity.CENTER);
             label.setMaxLines(1);
             label.setEllipsize(TextUtils.TruncateAt.END);
-            LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(dp(104), dp(24));
+            LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(dp(124), dp(24));
             labelParams.topMargin = dp(5);
             tile.addView(label, labelParams);
 
@@ -452,7 +462,7 @@ private final Runnable weatherLoop = new Runnable() {
             });
             tile.setOnClickListener(v -> launchApp(pkg, cls));
 
-            LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(dp(120), dp(108));
+            LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(dp(140), dp(110));
             item.rightMargin = dp(8);
             appRail.addView(tile, item);
         }
@@ -748,16 +758,14 @@ private final Runnable weatherLoop = new Runnable() {
         "Usar fondos cinematográficos automáticos",
         "Configurar catálogo y API de TMDB",
         "Animaciones de selección",
-        "Establecer como launcher predeterminado",
-        "Ajustes del dispositivo"
+        "Establecer como launcher predeterminado"
     };
     final String[] descriptions = new String[] {
         "Usá una imagen guardada en el dispositivo",
         "Volver a los fondos de películas y series",
         "Personalizá las recomendaciones y tu clave API",
         "Elegí cómo se mueven las tarjetas al enfocarlas",
-        "Elegí TV Launcher PG como pantalla de inicio",
-        "Abrí la configuración de Android"
+        "Elegí TV Launcher PG como pantalla de inicio"
     };
 
     LinearLayout panel = new LinearLayout(this);
@@ -804,8 +812,7 @@ private final Runnable weatherLoop = new Runnable() {
             else if (index == 1) useAutomaticWallpapers();
             else if (index == 2) showCatalogSettings();
             else if (index == 3) showCardAnimationSettings();
-            else if (index == 4) openHomeSettings();
-            else openSystemSettings();
+            else openHomeSettings();
         });
         row.setOnFocusChangeListener((v, focused) -> {
             v.setBackground(menuRowBackgroundFocused(focused));
