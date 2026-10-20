@@ -148,7 +148,7 @@ private final Runnable weatherLoop = new Runnable() {
     column.setPadding(dp(40), dp(14), dp(40), dp(8));
     root.addView(column, new FrameLayout.LayoutParams(-1, -1));
 
-    // ---- Barra superior: logo, pestañas, ajustes, personalizar, reloj y clima ----
+    // ---- Cabecera: hora/clima en la fila superior y pestañas debajo ----
     LinearLayout topBar = new LinearLayout(this);
     topBar.setGravity(Gravity.CENTER_VERTICAL);
     TextView logo = text("PG", 18, white, true);
@@ -160,21 +160,6 @@ private final Runnable weatherLoop = new Runnable() {
     logoBg.setStroke(dp(2), blue);
     logo.setBackground(logoBg);
     topBar.addView(logo, new LinearLayout.LayoutParams(dp(46), dp(40)));
-
-    String[] tabNames = {"Inicio", "Apps", "Para vos", "Películas", "Series"};
-    for (int i = 0; i < tabNames.length; i++) {
-        final int index = i;
-        TextView tab = makeTab(tabNames[i], v -> {
-            if (index == 0) pageScroll.post(() -> pageScroll.smoothScrollTo(0, 0));
-            else if (index == 1) scrollToView(appsTitle);
-            else if (index == 2) scrollToView(forYouTitle);
-            else if (index == 3) scrollToView(moviesTitle);
-            else scrollToView(seriesTitle);
-        });
-        LinearLayout.LayoutParams tabParams = new LinearLayout.LayoutParams(-2, dp(38));
-        tabParams.leftMargin = dp(i == 0 ? 18 : 4);
-        topBar.addView(tab, tabParams);
-    }
 
     View spacer = new View(this);
     topBar.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1));
@@ -190,6 +175,24 @@ private final Runnable weatherLoop = new Runnable() {
     weatherParams.leftMargin = dp(14);
     topBar.addView(buildWeatherWidget(), weatherParams);
     column.addView(topBar, new LinearLayout.LayoutParams(-1, dp(56)));
+
+    LinearLayout tabsRow = new LinearLayout(this);
+    tabsRow.setGravity(Gravity.CENTER_VERTICAL);
+    String[] tabNames = {"Inicio", "Apps", "Para vos", "Películas", "Series"};
+    for (int i = 0; i < tabNames.length; i++) {
+        final int index = i;
+        TextView tab = makeTab(tabNames[i], v -> {
+            if (index == 0) pageScroll.post(() -> pageScroll.smoothScrollTo(0, 0));
+            else if (index == 1) scrollToView(appsTitle);
+            else if (index == 2) scrollToView(forYouTitle);
+            else if (index == 3) scrollToView(moviesTitle);
+            else scrollToView(seriesTitle);
+        });
+        LinearLayout.LayoutParams tabParams = new LinearLayout.LayoutParams(-2, dp(38));
+        tabParams.leftMargin = dp(i == 0 ? 0 : 4);
+        tabsRow.addView(tab, tabParams);
+    }
+    column.addView(tabsRow, new LinearLayout.LayoutParams(-1, dp(42)));
 
     // ---- Destacado (hero) ----
     LinearLayout hero = new LinearLayout(this);
