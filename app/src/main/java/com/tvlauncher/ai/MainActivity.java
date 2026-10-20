@@ -276,8 +276,10 @@ private final Runnable weatherLoop = new Runnable() {
     }
 
     private void loadApps() {
-        appRail.removeAllViews(); PackageManager pm = getPackageManager();
-        Intent query = new Intent(Intent.ACTION_MAIN); query.addCategory(Intent.CATEGORY_LAUNCHER);
+        appRail.removeAllViews();
+        PackageManager pm = getPackageManager();
+        Intent query = new Intent(Intent.ACTION_MAIN);
+        query.addCategory(Intent.CATEGORY_LAUNCHER);
         List<android.content.pm.ResolveInfo> apps = pm.queryIntentActivities(query, 0);
         Collections.sort(apps, new Comparator<android.content.pm.ResolveInfo>() {
             @Override public int compare(android.content.pm.ResolveInfo a, android.content.pm.ResolveInfo b) {
@@ -286,69 +288,58 @@ private final Runnable weatherLoop = new Runnable() {
         });
         for (android.content.pm.ResolveInfo info : apps) {
             if (info.activityInfo.packageName.equals(getPackageName())) continue;
-            final String pkg = info.activityInfo.packageName; final String cls = info.activityInfo.name;
+            final String pkg = info.activityInfo.packageName;
+            final String cls = info.activityInfo.name;
             final String name = String.valueOf(info.loadLabel(pm));
 
-            // Google TV-inspired app tile: a wide rounded card, not a square box around the icon.
+            // Google TV-inspired favorites: icon medallion, no rectangular glass tile.
             LinearLayout tile = new LinearLayout(this);
             tile.setOrientation(LinearLayout.VERTICAL);
-            tile.setGravity(Gravity.CENTER);
+            tile.setGravity(Gravity.TOP | Gravity.CENTER_HORIZONTAL);
             tile.setFocusable(true);
             tile.setClickable(true);
-            tile.setPadding(dp(2), dp(3), dp(2), dp(3));
+            tile.setPadding(dp(3), dp(5), dp(3), dp(4));
             tile.setBackgroundColor(Color.TRANSPARENT);
 
-            FrameLayout card = new FrameLayout(this);
-            GradientDrawable normalCard = glassDrawable(0x55202d43, 0x66ffffff, 15);
-            GradientDrawable focusedCard = glassDrawable(blendColor(blue, 0xff20334c, 0.48f), 0xffd9ebff, 15);
-            focusedCard.setStroke(dp(2), blue);
-            StateListDrawable cardStates = new StateListDrawable();
-            cardStates.addState(new int[]{android.R.attr.state_focused}, focusedCard);
-            cardStates.addState(new int[]{}, normalCard);
-            card.setTag("app_card");
-            card.setBackground(cardStates);
-            card.setClipToPadding(false);
-            card.setClipToOutline(true);
-            // A subtle top reflection gives the translucent card a glass-like finish on Android 9.
-            View sheen = new View(this);
-            GradientDrawable sheenDrawable = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                    new int[]{0x44ffffff, 0x12ffffff, 0x00ffffff});
-            sheenDrawable.setCornerRadius(dp(15));
-            sheen.setBackground(sheenDrawable);
-            card.addView(sheen, new FrameLayout.LayoutParams(-1, -1));
+            FrameLayout medallion = new FrameLayout(this);
+            GradientDrawable normal = new GradientDrawable();
+            normal.setShape(GradientDrawable.OVAL);
+            normal.setColor(0xff252a35);
+            normal.setStroke(dp(1), 0x55ffffff);
+            GradientDrawable focused = new GradientDrawable();
+            focused.setShape(GradientDrawable.OVAL);
+            focused.setColor(0xfff1f4fa);
+            focused.setStroke(dp(3), blue);
+            StateListDrawable states = new StateListDrawable();
+            states.addState(new int[]{android.R.attr.state_focused}, focused);
+            states.addState(new int[]{}, normal);
+            medallion.setBackground(states);
+            medallion.setClipToOutline(true);
 
             ImageView icon = new ImageView(this);
-            icon.setBackgroundColor(Color.TRANSPARENT);
             icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
             try { icon.setImageDrawable(info.loadIcon(pm)); } catch (Exception ignored) { }
-            FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER);
-            card.addView(icon, iconParams);
-            tile.addView(card, new LinearLayout.LayoutParams(dp(128), dp(66)));
+            FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(42), dp(42), Gravity.CENTER);
+            medallion.addView(icon, iconParams);
+            tile.addView(medallion, new LinearLayout.LayoutParams(dp(68), dp(68)));
 
             TextView label = text(name, 11, white, true);
             label.setGravity(Gravity.CENTER);
             label.setMaxLines(1);
             label.setEllipsize(TextUtils.TruncateAt.END);
-            LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(dp(128), -2);
-            np.topMargin = dp(5);
-            tile.addView(label, np);
+            LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(dp(88), dp(22));
+            labelParams.topMargin = dp(7);
+            tile.addView(label, labelParams);
 
-            // Google TV-style focus: the selected tile comes forward clearly, with a light parallax lift.
-            tile.setPivotX(dp(70));
-            tile.setPivotY(dp(50));
-            tile.setOnFocusChangeListener((v, focused) -> {
+            tile.setOnFocusChangeListener((v, hasFocus) -> {
                 v.animate().cancel();
-                v.animate()
-                        .scaleX(focused ? 1.15f : 1f)
-                        .scaleY(focused ? 1.15f : 1f)
-                        .translationY(focused ? -dp(6) : 0f)
-                        .setDuration(focused ? 150 : 110)
-                        .start();
-                label.setTextColor(focused ? blue : white);
-                if (focused) selectApp(pkg, name);
+                v.animate().scaleX(hasFocus ? 1.12f : 1f).scaleY(hasFocus ? 1.12f : 1f)
+                        .translationY(hasFocus ? -dp(4) : 0f).setDuration(hasFocus ? 140 : 100).start();
+                label.setTextColor(hasFocus ? 0xffffffff : 0xffd5d9e2);
+                if (hasFocus) selectApp(pkg, name);
             });
             tile.setOnClickListener(v -> launchApp(pkg, cls));
-            LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(dp(140), dp(100));
+            LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(dp(96), dp(106));
             item.rightMargin = dp(8);
             appRail.addView(tile, item);
         }
@@ -452,49 +443,64 @@ private final Runnable weatherLoop = new Runnable() {
 }
 
     private void addMediaCards(LinearLayout rail, JSONArray array, boolean tv, long delayMs) {
-    if (array == null || array.length() == 0) { addCatalogPlaceholder(rail, "No hay títulos disponibles"); return; }
-    int limit = Math.min(array.length(), 12);
-    int shown = 0;
-    for (int i = 0; i < limit; i++) {
-        final JSONObject item = array.optJSONObject(i);
-        if (item == null) continue;
-        final String poster = jsonStr(item, "poster_path");
-        if (poster.isEmpty()) continue;
-        final String title = mediaTitle(item);
-        final String overview = jsonStr(item, "overview");
-        final String backdrop = jsonStr(item, "backdrop_path");
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setFocusable(true);
-        card.setClickable(true);
-        card.setPadding(dp(3), dp(3), dp(3), dp(3));
-        card.setBackground(mediaCardBackground());
-        card.setClipToOutline(true);
-        ImageView image = new ImageView(this);
-        image.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        image.setBackgroundColor(0x33202a3d);
-        card.addView(image, new LinearLayout.LayoutParams(dp(104), dp(156)));
-        TextView label = text(title, 10, white, true);
-        label.setMaxLines(2);
-        label.setEllipsize(TextUtils.TruncateAt.END);
-        label.setGravity(Gravity.CENTER_VERTICAL);
-        LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(dp(104), dp(32));
-        labelParams.topMargin = dp(3);
-        card.addView(label, labelParams);
-        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(dp(110), dp(200));
-        cardParams.rightMargin = dp(9);
-        rail.addView(card, cardParams);
-        loadImageInto(image, "https://image.tmdb.org/t/p/w342" + poster, delayMs + shown * 60L);
-        shown++;
-        card.setOnFocusChangeListener((v, focused) -> {
-            animateCardFocus(v, focused);
-            if (focused) setHeroDebounced(title,
-                    overview.isEmpty() ? "Explorá este título en tus aplicaciones instaladas." : overview, backdrop);
-        });
-        card.setOnClickListener(v -> showMediaDetails(title, overview, tv));
+        if (array == null || array.length() == 0) {
+            addCatalogPlaceholder(rail, "No hay títulos disponibles");
+            return;
+        }
+        int limit = Math.min(array.length(), 12);
+        int shown = 0;
+        for (int i = 0; i < limit; i++) {
+            final JSONObject item = array.optJSONObject(i);
+            if (item == null) continue;
+            String imagePath = jsonStr(item, "backdrop_path");
+            if (imagePath.isEmpty()) imagePath = jsonStr(item, "poster_path");
+            if (imagePath.isEmpty()) continue;
+            final String imageUrl = "https://image.tmdb.org/t/p/w500" + imagePath;
+            final String title = mediaTitle(item);
+            final String overview = jsonStr(item, "overview");
+            final String backdrop = jsonStr(item, "backdrop_path");
+
+            FrameLayout card = new FrameLayout(this);
+            card.setFocusable(true);
+            card.setClickable(true);
+            card.setBackground(mediaCardBackground());
+            card.setClipToOutline(true);
+
+            ImageView image = new ImageView(this);
+            image.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            image.setBackgroundColor(0xff202632);
+            card.addView(image, new FrameLayout.LayoutParams(-1, -1));
+
+            View shade = new View(this);
+            shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                    new int[]{0x00000000, 0x18000000, 0xe6000000}));
+            card.addView(shade, new FrameLayout.LayoutParams(-1, -1));
+
+            TextView label = text(title, 13, Color.WHITE, true);
+            label.setMaxLines(2);
+            label.setEllipsize(TextUtils.TruncateAt.END);
+            label.setShadowLayer(3f, 0f, 1f, Color.BLACK);
+            FrameLayout.LayoutParams labelParams = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM);
+            labelParams.leftMargin = dp(12);
+            labelParams.rightMargin = dp(10);
+            labelParams.bottomMargin = dp(10);
+            card.addView(label, labelParams);
+
+            LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(dp(238), dp(134));
+            cardParams.rightMargin = dp(12);
+            rail.addView(card, cardParams);
+            loadImageInto(image, imageUrl, delayMs + shown * 65L);
+            shown++;
+            card.setOnFocusChangeListener((v, focused) -> {
+                animateCardFocus(v, focused);
+                if (focused) setHeroDebounced(title,
+                        overview.isEmpty() ? "Explorá este título en tus aplicaciones instaladas." : overview,
+                        backdrop.isEmpty() ? jsonStr(item, "poster_path") : backdrop);
+            });
+            card.setOnClickListener(v -> showMediaDetails(title, overview, tv));
+        }
+        if (shown == 0) addCatalogPlaceholder(rail, "No hay títulos disponibles");
     }
-    if (shown == 0) addCatalogPlaceholder(rail, "No hay títulos disponibles");
-}
 
     private void showMediaDetails(String title, String overview, boolean tv) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this).setTitle(title).setMessage((tv?"Serie":"Película") + "\n\n" + (overview.isEmpty()?"Sin descripción disponible.":overview));
