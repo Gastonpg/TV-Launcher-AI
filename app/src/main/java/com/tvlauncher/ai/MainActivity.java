@@ -32,6 +32,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import android.widget.TextClock;
 import android.widget.Toast;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -56,7 +57,9 @@ public class MainActivity extends Activity {
     private final ExecutorService executor = Executors.newFixedThreadPool(3);
     private ImageView heroImage;
     private TextView heroTitle, heroDescription, statusText;
-    private LinearLayout appRail, movieRail, seriesRail;
+    private LinearLayout appRail, movieRail, seriesRail, forYouRail;
+    private TextView weatherText;
+    private String weatherCity = "Buenos Aires";
     private String tmdbKey = "";
     private String selectedPackage = "";
     private String selectedAppName = "";
@@ -95,58 +98,154 @@ public class MainActivity extends Activity {
 
     private void buildUi() {
         FrameLayout root = new FrameLayout(this);
-        root.setBackgroundColor(Color.rgb(10, 13, 21));
-        heroImage = new ImageView(this); heroImage.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        root.setBackgroundColor(Color.rgb(8, 11, 19));
+        heroImage = new ImageView(this);
+        heroImage.setScaleType(ImageView.ScaleType.CENTER_CROP);
         root.addView(heroImage, new FrameLayout.LayoutParams(-1, -1));
-        ScrollView page = new ScrollView(this); page.setFillViewport(false); page.setClipToPadding(false);
-        LinearLayout content = new LinearLayout(this); content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(38), dp(22), dp(38), dp(24));
-        page.addView(content, new ScrollView.LayoutParams(-1, -2));
-        root.addView(page, new FrameLayout.LayoutParams(-1, -1));
+        View leftShade = new View(this);
+        leftShade.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[]{0xee080d18, 0xaa080d18, 0x33080d18, 0x00080d18}));
+        root.addView(leftShade, new FrameLayout.LayoutParams(-1, -1));
+        View bottomShade = new View(this);
+        bottomShade.setBackground(new GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP,
+                new int[]{0xff080b13, 0xe6080b13, 0x00080b13}));
+        FrameLayout.LayoutParams bsp = new FrameLayout.LayoutParams(-1, dp(410), Gravity.BOTTOM);
+        root.addView(bottomShade, bsp);
 
-        LinearLayout header = new LinearLayout(this); header.setGravity(Gravity.CENTER_VERTICAL);
-        TextView logo = text("PG", 21, white, true); logo.setGravity(Gravity.CENTER); logo.setTag("pg_logo");
-        GradientDrawable logoBg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xff17233a, blendColor(blue, Color.BLACK, 0.55f)});
+        pageScroll = new ScrollView(this);
+        pageScroll.setFillViewport(false);
+        pageScroll.setClipToPadding(false);
+        pageScroll.setVerticalScrollBarEnabled(false);
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(38), dp(20), dp(38), dp(28));
+        pageScroll.addView(content, new ScrollView.LayoutParams(-1, -2));
+        root.addView(pageScroll, new FrameLayout.LayoutParams(-1, -1));
+
+        LinearLayout header = new LinearLayout(this);
+        header.setGravity(Gravity.CENTER_VERTICAL);
+        TextView logo = text("PG", 21, white, true);
+        logo.setGravity(Gravity.CENTER);
+        logo.setTag("pg_logo");
+        GradientDrawable logoBg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[]{0xff17233a, blendColor(blue, Color.BLACK, 0.55f)});
         logoBg.setCornerRadius(dp(13)); logoBg.setStroke(dp(2), blue); logo.setBackground(logoBg);
-        header.addView(logo, new LinearLayout.LayoutParams(dp(54), dp(48)));
-        TextView brand = text("TV LAUNCHER PG", 18, white, true);
-        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-2, -2); bp.leftMargin = dp(13); header.addView(brand, bp);
-        View spacer = new View(this); header.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1));
-        Button systemSettings = button("⚙ Ajustes del TV", false); systemSettings.setOnClickListener(v -> openSystemSettings());
-        header.addView(systemSettings, new LinearLayout.LayoutParams(-2, dp(46)));
-        Button config = button("Personalizar", true); config.setOnClickListener(v -> showPersonalizationMenu());
-        LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-2, dp(46)); cp.leftMargin = dp(9); header.addView(config, cp);
-        content.addView(header, new LinearLayout.LayoutParams(-1, dp(56)));
+        header.addView(logo, new LinearLayout.LayoutParams(dp(52), dp(46)));
+        TextView brand = text("TV LAUNCHER", 17, white, true);
+        LinearLayout.LayoutParams brandP = new LinearLayout.LayoutParams(-2, -2);
+        brandP.leftMargin = dp(12); header.addView(brand, brandP);
+        TextView pg = text("PG", 11, blue, true);
+        LinearLayout.LayoutParams pgP = new LinearLayout.LayoutParams(-2, -2);
+        pgP.leftMargin = dp(6); header.addView(pg, pgP);
+        View flexible = new View(this);
+        header.addView(flexible, new LinearLayout.LayoutParams(0, 1, 1));
+        LinearLayout clockBox = new LinearLayout(this);
+        clockBox.setGravity(Gravity.CENTER_VERTICAL);
+        clockBox.setOrientation(LinearLayout.VERTICAL);
+        clockBox.setPadding(dp(14), dp(6), dp(14), dp(6));
+        clockBox.setBackground(glassDrawable(0x66202a3b, 0x44ffffff, 14));
+        TextClock clock = new TextClock(this);
+        clock.setFormat24Hour("HH:mm");
+        clock.setFormat12Hour("h:mm a");
+        clock.setTextColor(white); clock.setTextSize(20); clock.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        clockBox.addView(clock);
+        weatherText = text("Clima · " + weatherCity, 10, muted, false);
+        clockBox.addView(weatherText);
+        LinearLayout.LayoutParams clockP = new LinearLayout.LayoutParams(-2, -2);
+        clockP.rightMargin = dp(12); header.addView(clockBox, clockP);
+        Button systemSettings = button("⚙ Ajustes del TV", false);
+        systemSettings.setOnClickListener(v -> openSystemSettings());
+        header.addView(systemSettings, new LinearLayout.LayoutParams(-2, dp(44)));
+        Button config = button("Personalizar", true);
+        config.setOnClickListener(v -> showPersonalizationMenu());
+        LinearLayout.LayoutParams configP = new LinearLayout.LayoutParams(-2, dp(44));
+        configP.leftMargin = dp(8); header.addView(config, configP);
+        content.addView(header, new LinearLayout.LayoutParams(-1, dp(54)));
 
-        View gap = new View(this); content.addView(gap, new LinearLayout.LayoutParams(1, dp(55)));
-        TextView featuredLabel = text("DESTACADO PARA VOS", 13, blue, true); featuredLabel.setTag("accent_label"); content.addView(featuredLabel);
-        heroTitle = text("Tu pantalla, tu mundo", 34, white, true);
-        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-1, -2); tp.topMargin = dp(7); content.addView(heroTitle, tp);
-        heroDescription = text("Tus aplicaciones y recomendaciones en un solo lugar.", 15, muted, false); heroDescription.setMaxLines(3);
-        LinearLayout.LayoutParams dp = new LinearLayout.LayoutParams(dp(600), -2); dp.topMargin = dp(8); content.addView(heroDescription, dp);
-        LinearLayout actions = new LinearLayout(this); actions.setGravity(Gravity.CENTER_VERTICAL);
-        Button change = button("↻ Cambiar destacado", true); change.setOnClickListener(v -> changeFeatured());
-        actions.addView(change, new LinearLayout.LayoutParams(-2, dp(48)));
-        Button system = button("Abrir ajustes", false); system.setOnClickListener(v -> openSystemSettings());
-        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-2, dp(48)); sp.leftMargin = dp(10); actions.addView(system, sp);
-        LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, dp(54)); ap.topMargin = dp(9); content.addView(actions, ap);
+        LinearLayout tabs = new LinearLayout(this);
+        tabs.setGravity(Gravity.CENTER_VERTICAL);
+        String[] tabNames = new String[]{"Inicio", "Aplicaciones", "Para vos", "Películas", "Series"};
+        for (int i=0;i<tabNames.length;i++) {
+            final int tabIndex=i;
+            TextView tab=text(tabNames[i], 13, i==0?white:muted, i==0);
+            tab.setGravity(Gravity.CENTER);
+            tab.setPadding(dp(13), dp(9), dp(13), dp(9));
+            tab.setFocusable(true); tab.setClickable(true); tab.setTag("accent_tab");
+            tab.setBackground(i==0?buttonGlassBackground(true):buttonGlassBackground(false));
+            tab.setOnClickListener(v -> {
+                View target = tabIndex==1 ? appRail : tabIndex==2 ? forYouRail : tabIndex==3 ? movieRail : tabIndex==4 ? seriesRail : heroTitle;
+                if(target!=null) scrollToView(target);
+            });
+            LinearLayout.LayoutParams tabP=new LinearLayout.LayoutParams(-2,dp(40));
+            tabP.rightMargin=dp(5); tabs.addView(tab,tabP);
+        }
+        LinearLayout.LayoutParams tabsP=new LinearLayout.LayoutParams(-1,dp(46));
+        tabsP.topMargin=dp(10); content.addView(tabs,tabsP);
 
-        addSectionTitle(content, "TUS APLICACIONES");
-        HorizontalScrollView appsScroll = railScroll(); appsScroll.setClipChildren(false); appsScroll.setClipToPadding(false); appRail = new LinearLayout(this); appRail.setOrientation(LinearLayout.HORIZONTAL);
+        View spacer = new View(this);
+        content.addView(spacer, new LinearLayout.LayoutParams(1, dp(34)));
+        TextView featuredLabel = text("DESTACADO PARA VOS", 12, blue, true);
+        featuredLabel.setTag("accent_label"); content.addView(featuredLabel);
+        heroTitle = text("Tu pantalla, tu mundo", 36, white, true);
+        heroTitle.setMaxLines(2);
+        LinearLayout.LayoutParams titleP=new LinearLayout.LayoutParams(dp(700),-2);
+        titleP.topMargin=dp(7); content.addView(heroTitle,titleP);
+        heroDescription = text("Tus aplicaciones y recomendaciones en un solo lugar.", 15, muted, false);
+        heroDescription.setMaxLines(3);
+        LinearLayout.LayoutParams descP=new LinearLayout.LayoutParams(dp(590),-2);
+        descP.topMargin=dp(8); content.addView(heroDescription,descP);
+        LinearLayout actions=new LinearLayout(this); actions.setGravity(Gravity.CENTER_VERTICAL);
+        Button change=button("▶  Cambiar destacado",true); change.setOnClickListener(v->changeFeatured());
+        actions.addView(change,new LinearLayout.LayoutParams(-2,dp(46)));
+        Button more=button("Más información",false); more.setOnClickListener(v->{
+            if(!trending.isEmpty()) showMediaDetails(trending.get(Math.abs(fallbackIndex++)%trending.size()), false);
+            else showCatalogSettings();
+        });
+        LinearLayout.LayoutParams moreP=new LinearLayout.LayoutParams(-2,dp(46));
+        moreP.leftMargin=dp(9); actions.addView(more,moreP);
+        LinearLayout.LayoutParams actionsP=new LinearLayout.LayoutParams(-1,dp(50));
+        actionsP.topMargin=dp(10); content.addView(actions,actionsP);
+
+        addSectionTitle(content,"TUS APLICACIONES");
+        HorizontalScrollView appsScroll=railScroll();
+        appsScroll.setClipChildren(false); appsScroll.setClipToPadding(false);
+        appRail=new LinearLayout(this); appRail.setOrientation(LinearLayout.HORIZONTAL);
         appRail.setClipChildren(false); appRail.setClipToPadding(false);
-        appsScroll.addView(appRail, new HorizontalScrollView.LayoutParams(-2, -1)); content.addView(appsScroll, new LinearLayout.LayoutParams(-1, dp(112)));
+        appsScroll.addView(appRail,new HorizontalScrollView.LayoutParams(-2,-1));
+        content.addView(appsScroll,new LinearLayout.LayoutParams(-1,dp(118)));
 
-        addSectionTitle(content, "PELÍCULAS POPULARES");
-        HorizontalScrollView moviesScroll = railScroll(); movieRail = new LinearLayout(this); movieRail.setOrientation(LinearLayout.HORIZONTAL);
-        moviesScroll.addView(movieRail, new HorizontalScrollView.LayoutParams(-2, -1)); content.addView(moviesScroll, new LinearLayout.LayoutParams(-1, dp(190)));
+        addSectionTitle(content,"PARA VOS");
+        HorizontalScrollView forYouScroll=railScroll();
+        forYouRail=new LinearLayout(this); forYouRail.setOrientation(LinearLayout.HORIZONTAL);
+        forYouScroll.addView(forYouRail,new HorizontalScrollView.LayoutParams(-2,-1));
+        content.addView(forYouScroll,new LinearLayout.LayoutParams(-1,dp(190)));
 
-        addSectionTitle(content, "SERIES POPULARES");
-        HorizontalScrollView seriesScroll = railScroll(); seriesRail = new LinearLayout(this); seriesRail.setOrientation(LinearLayout.HORIZONTAL);
-        seriesScroll.addView(seriesRail, new HorizontalScrollView.LayoutParams(-2, -1)); content.addView(seriesScroll, new LinearLayout.LayoutParams(-1, dp(190)));
+        addSectionTitle(content,"PELÍCULAS POPULARES");
+        HorizontalScrollView moviesScroll=railScroll();
+        movieRail=new LinearLayout(this); movieRail.setOrientation(LinearLayout.HORIZONTAL);
+        moviesScroll.addView(movieRail,new HorizontalScrollView.LayoutParams(-2,-1));
+        content.addView(moviesScroll,new LinearLayout.LayoutParams(-1,dp(190)));
 
-        statusText = text("Android 9 · optimizado para TV Box · PG", 11, Color.rgb(160,173,195), false);
-        LinearLayout.LayoutParams stp = new LinearLayout.LayoutParams(-1, -2); stp.topMargin = dp(12); content.addView(statusText, stp);
+        addSectionTitle(content,"SERIES POPULARES");
+        HorizontalScrollView seriesScroll=railScroll();
+        seriesRail=new LinearLayout(this); seriesRail.setOrientation(LinearLayout.HORIZONTAL);
+        seriesScroll.addView(seriesRail,new HorizontalScrollView.LayoutParams(-2,-1));
+        content.addView(seriesScroll,new LinearLayout.LayoutParams(-1,dp(190)));
+
+        statusText=text("Android 9 · optimizado para TV Box · PG",11,Color.rgb(160,173,195),false);
+        LinearLayout.LayoutParams statusP=new LinearLayout.LayoutParams(-1,-2);
+        statusP.topMargin=dp(14); content.addView(statusText,statusP);
         setContentView(root);
+    }
+
+    private void scrollToView(View target) {
+        if (pageScroll == null || target == null) return;
+        int[] location = new int[2];
+        target.getLocationOnScreen(location);
+        int[] parent = new int[2];
+        pageScroll.getLocationOnScreen(parent);
+        pageScroll.smoothScrollBy(0, location[1] - parent[1] - dp(45));
+        target.requestFocus();
     }
 
     private void addSectionTitle(LinearLayout content, String title) {
@@ -281,6 +380,7 @@ public class MainActivity extends Activity {
         if (tmdbKey.isEmpty()) {
             statusText.setText("Catálogos online: configurá tu clave gratuita de TMDB.");
             addCatalogPlaceholder(movieRail, "Configurá TMDB para ver películas");
+            addCatalogPlaceholder(forYouRail, "Configurá TMDB para recomendaciones");
             addCatalogPlaceholder(seriesRail, "Configurá TMDB para ver series");
             return;
         }
@@ -294,7 +394,8 @@ public class MainActivity extends Activity {
                 JSONObject shows = getJson("https://api.themoviedb.org/3/tv/popular?api_key=" + enc(tmdbKey) + "&language=es-ES&page=1");
                 JSONArray ma = movies.optJSONArray("results"), sa = shows.optJSONArray("results");
                 handler.post(() -> {
-                    movieRail.removeAllViews(); seriesRail.removeAllViews();
+                    movieRail.removeAllViews(); seriesRail.removeAllViews(); forYouRail.removeAllViews();
+                    addMediaCards(forYouRail, t, false);
                     addMediaCards(movieRail, ma, false); addMediaCards(seriesRail, sa, true);
                     statusText.setText("Catálogos online · TMDB · los enlaces de reproducción dependen de cada aplicación.");
                 });
@@ -472,7 +573,8 @@ public class MainActivity extends Activity {
             "Elegir imagen de la TV Box",
             "Usar fondos cinematográficos automáticos",
             "Configurar catálogo de películas y series (TMDB)",
-            "Establecer como launcher predeterminado"
+            "Establecer como launcher predeterminado",
+            "Región del reloj y clima"
         };
         new AlertDialog.Builder(this)
             .setTitle("Personalizar TV Launcher PG")
@@ -480,10 +582,29 @@ public class MainActivity extends Activity {
                 if (which == 0) chooseWallpaper();
                 else if (which == 1) useAutomaticWallpapers();
                 else if (which == 2) showCatalogSettings();
-                else openHomeSettings();
+                else if (which == 3) openHomeSettings();
+                else showWeatherCityDialog();
             })
             .setNegativeButton("Cerrar", null)
             .show();
+    }
+
+    private void showWeatherCityDialog() {
+        EditText cityInput = new EditText(this);
+        cityInput.setSingleLine(true);
+        cityInput.setText(weatherCity);
+        cityInput.setHint("Ej.: Paraná");
+        new AlertDialog.Builder(this).setTitle("Región del reloj y clima")
+            .setMessage("Elegí la ciudad que querés mostrar en la pantalla principal.")
+            .setView(cityInput)
+            .setPositiveButton("Guardar", (d,w) -> {
+                String value=cityInput.getText().toString().trim();
+                if(!value.isEmpty()) {
+                    weatherCity=value;
+                    prefs().edit().putString("weather_city",value).apply();
+                    if(weatherText!=null) weatherText.setText("Clima · "+weatherCity);
+                }
+            }).setNegativeButton("Cancelar",null).show();
     }
 
     private Drawable buttonGlassBackground(boolean primary) {
@@ -537,6 +658,7 @@ public class MainActivity extends Activity {
             logoBg.setCornerRadius(dp(13)); logoBg.setStroke(dp(2), blue); view.setBackground(logoBg);
         } else if ("primary_button".equals(tag) && view instanceof Button) ((Button) view).setBackground(buttonGlassBackground(true));
         else if ("secondary_button".equals(tag) && view instanceof Button) ((Button) view).setBackground(buttonGlassBackground(false));
+        else if ("accent_tab".equals(tag) && view instanceof TextView) ((TextView) view).setBackground(buttonGlassBackground(false));
         else if ("app_card".equals(tag)) {
             GradientDrawable normalCard = glassDrawable(0x55202d43, 0x66ffffff, 15);
             GradientDrawable focusedCard = glassDrawable(blendColor(blue, 0xff20334c, 0.48f), 0xffd9ebff, 15);
