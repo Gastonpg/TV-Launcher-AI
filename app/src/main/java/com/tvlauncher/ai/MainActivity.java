@@ -120,143 +120,169 @@ private final Runnable weatherLoop = new Runnable() {
 }
 
     private void buildUi() {
-    FrameLayout root = new FrameLayout(this);
-    root.setBackgroundColor(Color.rgb(10, 13, 21));
-    heroImage = new ImageView(this);
-    heroImage.setScaleType(ImageView.ScaleType.CENTER_CROP);
-    root.addView(heroImage, new FrameLayout.LayoutParams(-1, -1));
+        // Pantalla reconstruida desde cero siguiendo la composición de Google TV clásico:
+        // navegación en una sola franja, fondo cinematográfico a pantalla completa,
+        // información destacada a la izquierda y carruseles en la mitad inferior.
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(0xff080b12);
 
-    // Degradados oscuros para que el texto se lea sobre cualquier imagen.
-    // Cubren solo parte de la pantalla para no gastar de más en la GPU.
-    int screenW = getResources().getDisplayMetrics().widthPixels;
-    int screenH = getResources().getDisplayMetrics().heightPixels;
-    View leftScrim = new View(this);
-    leftScrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-            new int[]{0xE6070A12, 0x99070A12, 0x00070A12}));
-    root.addView(leftScrim, new FrameLayout.LayoutParams(screenW * 7 / 10, -1, Gravity.LEFT));
-    View bottomScrim = new View(this);
-    bottomScrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-            new int[]{0x00070A12, 0xB3070A12, 0xF2070A12}));
-    root.addView(bottomScrim, new FrameLayout.LayoutParams(-1, screenH * 6 / 10, Gravity.BOTTOM));
-    View topScrim = new View(this);
-    topScrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-            new int[]{0x99070A12, 0x00070A12}));
-    root.addView(topScrim, new FrameLayout.LayoutParams(-1, dp(100), Gravity.TOP));
+        heroImage = new ImageView(this);
+        heroImage.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        heroImage.setBackgroundColor(0xff101725);
+        root.addView(heroImage, new FrameLayout.LayoutParams(-1, -1));
 
-    LinearLayout column = new LinearLayout(this);
-    column.setOrientation(LinearLayout.VERTICAL);
-    column.setPadding(dp(40), dp(14), dp(40), dp(8));
-    root.addView(column, new FrameLayout.LayoutParams(-1, -1));
+        int sw = getResources().getDisplayMetrics().widthPixels;
+        int sh = getResources().getDisplayMetrics().heightPixels;
 
-    // ---- Cabecera: hora/clima en la fila superior y pestañas debajo ----
-    LinearLayout topBar = new LinearLayout(this);
-    topBar.setGravity(Gravity.CENTER_VERTICAL);
+        View topShade = new View(this);
+        topShade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{0xE9080B12, 0x55080B12, 0x00080B12}));
+        root.addView(topShade, new FrameLayout.LayoutParams(-1, dp(150), Gravity.TOP));
 
-    // Widget propio conservado: hora y clima en cristal discreto a la izquierda.
-    topBar.addView(buildWeatherWidget(), new LinearLayout.LayoutParams(-2, -2));
+        View leftShade = new View(this);
+        leftShade.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[]{0xE8080B12, 0xA6080B12, 0x38080B12, 0x00080B12}));
+        root.addView(leftShade, new FrameLayout.LayoutParams(sw * 8 / 10, sh * 7 / 10, Gravity.LEFT | Gravity.TOP));
 
-    View spacer = new View(this);
-    topBar.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1));
+        View lowerShade = new View(this);
+        lowerShade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{0x00080B12, 0xA9080B12, 0xF7080B12}));
+        root.addView(lowerShade, new FrameLayout.LayoutParams(-1, sh * 5 / 10, Gravity.BOTTOM));
 
-    // Identidad del launcher arriba a la derecha, junto al engranaje.
-    Button config = button("Personalizar", false);
-    config.setOnClickListener(v -> showPersonalizationMenu());
-    LinearLayout.LayoutParams configParams = new LinearLayout.LayoutParams(-2, dp(42));
-    configParams.rightMargin = dp(12);
-    topBar.addView(config, configParams);
+        LinearLayout screen = new LinearLayout(this);
+        screen.setOrientation(LinearLayout.VERTICAL);
+        screen.setPadding(dp(42), dp(12), dp(42), dp(4));
+        screen.setClipChildren(false);
+        screen.setClipToPadding(false);
+        root.addView(screen, new FrameLayout.LayoutParams(-1, -1));
 
-    TextView logo = text("TV LAUNCHER PG", 15, white, true);
-    logo.setGravity(Gravity.CENTER);
-    logo.setTag("pg_logo");
-    LinearLayout.LayoutParams logoParams = new LinearLayout.LayoutParams(-2, dp(42));
-    logoParams.rightMargin = dp(8);
-    topBar.addView(logo, logoParams);
+        // Barra de navegación clásica: categorías a la izquierda; identidad y ajustes a la derecha.
+        LinearLayout nav = new LinearLayout(this);
+        nav.setOrientation(LinearLayout.HORIZONTAL);
+        nav.setGravity(Gravity.CENTER_VERTICAL);
+        nav.setClipChildren(false);
+        nav.setClipToPadding(false);
 
-    Button systemSettings = button("⚙", false);
-    systemSettings.setContentDescription("Ajustes del dispositivo");
-    systemSettings.setOnClickListener(v -> openSystemSettings());
-    topBar.addView(systemSettings, new LinearLayout.LayoutParams(dp(48), dp(42)));
-    column.addView(topBar, new LinearLayout.LayoutParams(-1, dp(56)));
+        HorizontalScrollView navScroll = new HorizontalScrollView(this);
+        navScroll.setHorizontalScrollBarEnabled(false);
+        navScroll.setFillViewport(false);
+        navScroll.setClipChildren(false);
+        navScroll.setClipToPadding(false);
+        navScroll.setFocusable(false);
+        LinearLayout tabs = new LinearLayout(this);
+        tabs.setOrientation(LinearLayout.HORIZONTAL);
+        tabs.setGravity(Gravity.CENTER_VERTICAL);
+        tabs.setClipChildren(false);
+        tabs.setClipToPadding(false);
 
-    LinearLayout tabsRow = new LinearLayout(this);
-    tabsRow.setGravity(Gravity.CENTER_VERTICAL);
-    String[] tabNames = {"Inicio", "Apps", "Para vos", "Películas", "Series"};
-    for (int i = 0; i < tabNames.length; i++) {
-        final int index = i;
-        TextView tab = makeTab(tabNames[i], v -> {
-            if (index == 0) pageScroll.post(() -> pageScroll.smoothScrollTo(0, 0));
-            else if (index == 1) scrollToView(appsTitle);
-            else if (index == 2) scrollToView(forYouTitle);
-            else if (index == 3) scrollToView(moviesTitle);
-            else scrollToView(seriesTitle);
-        });
-        LinearLayout.LayoutParams tabParams = new LinearLayout.LayoutParams(-2, dp(38));
-        tabParams.leftMargin = dp(i == 0 ? 0 : 4);
-        tabsRow.addView(tab, tabParams);
+        String[] tabNames = {"Para vos", "Películas", "Series", "Apps", "Biblioteca"};
+        for (int i = 0; i < tabNames.length; i++) {
+            final int index = i;
+            TextView tab = makeTab(tabNames[i], v -> {
+                if (index == 0) pageScroll.post(() -> pageScroll.smoothScrollTo(0, 0));
+                else if (index == 1) scrollToView(moviesTitle);
+                else if (index == 2) scrollToView(seriesTitle);
+                else if (index == 3) scrollToView(appsTitle);
+                else scrollToView(forYouTitle);
+            });
+            tab.setPadding(dp(13), 0, dp(13), 0);
+            LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-2, dp(42));
+            tp.rightMargin = dp(2);
+            tabs.addView(tab, tp);
+        }
+        navScroll.addView(tabs, new HorizontalScrollView.LayoutParams(-2, -1));
+        nav.addView(navScroll, new LinearLayout.LayoutParams(0, dp(54), 1f));
+
+        View navSpacer = new View(this);
+        nav.addView(navSpacer, new LinearLayout.LayoutParams(dp(10), 1));
+
+        View weather = buildWeatherWidget();
+        weather.setPadding(dp(10), dp(3), dp(11), dp(3));
+        nav.addView(weather, new LinearLayout.LayoutParams(-2, dp(42)));
+
+        TextView logo = text("TV LAUNCHER PG", 13, white, true);
+        logo.setGravity(Gravity.CENTER);
+        logo.setTag("pg_logo");
+        logo.setPadding(dp(12), 0, dp(10), 0);
+        nav.addView(logo, new LinearLayout.LayoutParams(-2, dp(44)));
+
+        Button settings = button("⚙", false);
+        settings.setTextSize(20);
+        settings.setContentDescription("Ajustes del dispositivo");
+        settings.setOnClickListener(v -> openSystemSettings());
+        nav.addView(settings, new LinearLayout.LayoutParams(dp(46), dp(42)));
+
+        screen.addView(nav, new LinearLayout.LayoutParams(-1, dp(54)));
+
+        // Área de contenido destacado: el fondo cinematográfico cambia al mover el foco por TMDB.
+        LinearLayout featured = new LinearLayout(this);
+        featured.setOrientation(LinearLayout.VERTICAL);
+        featured.setGravity(Gravity.CENTER_VERTICAL);
+        featured.setPadding(dp(4), 0, 0, dp(2));
+
+        TextView featuredLabel = text("RECOMENDADO", 12, blue, true);
+        featuredLabel.setLetterSpacing(0.08f);
+        featured.addView(featuredLabel, new LinearLayout.LayoutParams(-1, -2));
+
+        heroTitle = text("Descubrí qué mirar", 32, white, true);
+        heroTitle.setMaxLines(1);
+        heroTitle.setEllipsize(TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams htp = new LinearLayout.LayoutParams(dp(650), -2);
+        htp.topMargin = dp(7);
+        featured.addView(heroTitle, htp);
+
+        heroDescription = text("Películas y series populares, en una sola pantalla.", 14, 0xffe0e5ef, false);
+        heroDescription.setMaxLines(2);
+        heroDescription.setEllipsize(TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams hdp = new LinearLayout.LayoutParams(dp(540), -2);
+        hdp.topMargin = dp(5);
+        featured.addView(heroDescription, hdp);
+
+        LinearLayout featureActions = new LinearLayout(this);
+        featureActions.setGravity(Gravity.CENTER_VERTICAL);
+        Button change = button("↻ Cambiar destacado", true);
+        change.setOnClickListener(v -> changeFeatured());
+        featureActions.addView(change, new LinearLayout.LayoutParams(-2, dp(40)));
+        Button details = button("Más información", false);
+        details.setOnClickListener(v -> showHeroInfo());
+        LinearLayout.LayoutParams detailLp = new LinearLayout.LayoutParams(-2, dp(40));
+        detailLp.leftMargin = dp(8);
+        featureActions.addView(details, detailLp);
+        LinearLayout.LayoutParams actionsLp = new LinearLayout.LayoutParams(-1, -2);
+        actionsLp.topMargin = dp(9);
+        featured.addView(featureActions, actionsLp);
+
+        screen.addView(featured, new LinearLayout.LayoutParams(-1, dp(205)));
+
+        pageScroll = new ScrollView(this);
+        pageScroll.setVerticalScrollBarEnabled(false);
+        pageScroll.setClipChildren(false);
+        pageScroll.setClipToPadding(false);
+        LinearLayout rows = new LinearLayout(this);
+        rows.setOrientation(LinearLayout.VERTICAL);
+        rows.setClipChildren(false);
+        rows.setClipToPadding(false);
+        pageScroll.addView(rows, new ScrollView.LayoutParams(-1, -2));
+        screen.addView(pageScroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+
+        // El primer carrusel siempre es el catálogo cinematográfico; apps debajo, como se pidió.
+        forYouTitle = addSectionHeader(rows, "DESTACADOS PARA VOS");
+        forYouRail = addRail(rows, 170);
+        appsTitle = addSectionHeader(rows, "TUS APLICACIONES");
+        appRail = addRail(rows, 116);
+        moviesTitle = addSectionHeader(rows, "PELÍCULAS POPULARES");
+        movieRail = addRail(rows, 210);
+        seriesTitle = addSectionHeader(rows, "SERIES POPULARES");
+        seriesRail = addRail(rows, 210);
+
+        statusText = text("TV Launcher PG  ·  Catálogo TMDB", 10, 0xffaeb8c9, false);
+        LinearLayout.LayoutParams statusLp = new LinearLayout.LayoutParams(-1, -2);
+        statusLp.topMargin = dp(7);
+        statusLp.leftMargin = dp(6);
+        rows.addView(statusText, statusLp);
+
+        setContentView(root);
     }
-    column.addView(tabsRow, new LinearLayout.LayoutParams(-1, dp(42)));
-
-    // ---- Destacado (hero) ----
-    LinearLayout hero = new LinearLayout(this);
-    hero.setOrientation(LinearLayout.VERTICAL);
-    hero.setGravity(Gravity.BOTTOM);
-    TextView featuredLabel = text("DESTACADO PARA VOS", 12, blue, true);
-    featuredLabel.setTag("accent_label");
-    hero.addView(featuredLabel);
-    heroTitle = text("Tu pantalla, tu mundo", 30, white, true);
-    heroTitle.setMaxLines(1);
-    heroTitle.setEllipsize(TextUtils.TruncateAt.END);
-    LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(-1, -2);
-    titleParams.topMargin = dp(6);
-    hero.addView(heroTitle, titleParams);
-    heroDescription = text("Tus aplicaciones y recomendaciones en un solo lugar.", 15, muted, false);
-    heroDescription.setMaxLines(2);
-    heroDescription.setEllipsize(TextUtils.TruncateAt.END);
-    LinearLayout.LayoutParams descParams = new LinearLayout.LayoutParams(dp(560), -2);
-    descParams.topMargin = dp(6);
-    hero.addView(heroDescription, descParams);
-    LinearLayout actions = new LinearLayout(this);
-    actions.setGravity(Gravity.CENTER_VERTICAL);
-    Button change = button("↻ Cambiar destacado", true);
-    change.setOnClickListener(v -> changeFeatured());
-    actions.addView(change, new LinearLayout.LayoutParams(-2, dp(44)));
-    Button more = button("Más información", false);
-    more.setOnClickListener(v -> showHeroInfo());
-    LinearLayout.LayoutParams moreParams = new LinearLayout.LayoutParams(-2, dp(44));
-    moreParams.leftMargin = dp(10);
-    actions.addView(more, moreParams);
-    LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(-1, -2);
-    actionsParams.topMargin = dp(10);
-    hero.addView(actions, actionsParams);
-    column.addView(hero, new LinearLayout.LayoutParams(-1, dp(190)));
-
-    // ---- Filas desplazables ----
-    pageScroll = new ScrollView(this);
-    pageScroll.setVerticalScrollBarEnabled(false);
-    pageScroll.setClipToPadding(false);
-    LinearLayout rows = new LinearLayout(this);
-    rows.setOrientation(LinearLayout.VERTICAL);
-    rows.setClipChildren(false);
-    pageScroll.addView(rows, new ScrollView.LayoutParams(-1, -2));
-    column.addView(pageScroll, new LinearLayout.LayoutParams(-1, 0, 1f));
-
-    // Primera fila: catálogo cinematográfico de TMDB, con fondos panorámicos.
-    forYouTitle = addSectionHeader(rows, "PELÍCULAS Y SERIES");
-    forYouRail = addRail(rows, 176);
-    // Segunda fila: aplicaciones instaladas, con tarjetas más compactas.
-    appsTitle = addSectionHeader(rows, "TUS APLICACIONES");
-    appRail = addRail(rows, 124);
-    moviesTitle = addSectionHeader(rows, "PELÍCULAS");
-    movieRail = addRail(rows, 220);
-    seriesTitle = addSectionHeader(rows, "SERIES");
-    seriesRail = addRail(rows, 220);
-
-    statusText = text("Android 9 · optimizado para TV Box · PG", 11, Color.rgb(160, 173, 195), false);
-    LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(-1, -2);
-    statusParams.topMargin = dp(10);
-    rows.addView(statusText, statusParams);
-    setContentView(root);
-}
 
     private void addSectionTitle(LinearLayout content, String title) {
         TextView label = text(title, 13, muted, true);
