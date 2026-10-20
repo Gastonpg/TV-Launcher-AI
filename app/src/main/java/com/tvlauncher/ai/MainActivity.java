@@ -313,7 +313,11 @@ private final Runnable weatherLoop = new Runnable() {
         actionsLp.topMargin = dp(9);
         featured.addView(featureActions, actionsLp);
 
-        screen.addView(featured, new LinearLayout.LayoutParams(-1, dp(205)));
+        // La zona promocional bajo las categorías queda oculta: el catálogo sube y gana protagonismo.
+        // Conservamos las vistas de texto en memoria porque las funciones de TMDB actualizan el título
+        // y la descripción al navegar por el contenido.
+        featured.setVisibility(View.GONE);
+        screen.addView(featured, new LinearLayout.LayoutParams(-1, 0));
 
         pageScroll = new ScrollView(this);
         pageScroll.setVerticalScrollBarEnabled(false);
@@ -781,6 +785,7 @@ private final Runnable weatherLoop = new Runnable() {
         row.setBackground(menuRowBackground());
 
         TextView title = text(options[i], 14, 0xfff1f4fa, true);
+        title.setTypeface(Typeface.create("sans-serif-black", Typeface.NORMAL));
         title.setMaxLines(1);
         title.setEllipsize(TextUtils.TruncateAt.END);
         row.addView(title, new LinearLayout.LayoutParams(-1, -2));
