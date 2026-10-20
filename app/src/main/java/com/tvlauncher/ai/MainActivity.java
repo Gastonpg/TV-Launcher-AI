@@ -912,7 +912,7 @@ private Drawable menuRowBackgroundFocused(boolean focused) {
         PackageManager pm = getPackageManager();
         List<android.content.pm.ApplicationInfo> installed;
         try {
-            installed = pm.getInstalledApplications(0);
+            installed = pm.getInstalledApplications(PackageManager.MATCH_DISABLED_COMPONENTS);
         } catch (Exception e) {
             new AlertDialog.Builder(this)
                 .setTitle("Administrador de aplicaciones")
@@ -971,10 +971,14 @@ private Drawable menuRowBackgroundFocused(boolean focused) {
             labelsLp.leftMargin = dp(8);
             row.addView(labels, labelsLp);
 
-            Button disable = button("Deshabilitar", false);
+            boolean enabled = info.enabled;
+            Button disable = button(enabled ? "Deshabilitar" : "Habilitar", false);
             disable.setTextSize(10);
             disable.setPadding(dp(5), 0, dp(5), 0);
-            disable.setOnClickListener(v -> confirmDisableApp(pkg, appName));
+            disable.setOnClickListener(v -> {
+                if (enabled) confirmDisableApp(pkg, appName);
+                else confirmEnableApp(pkg, appName);
+            });
             row.addView(disable, new LinearLayout.LayoutParams(-2, dp(36)));
 
             Button infoButton = button("Info", false);
@@ -1025,6 +1029,33 @@ private Drawable menuRowBackgroundFocused(boolean focused) {
                         .show();
                 } catch (Exception error) {
                     Toast.makeText(this, "No se pudo deshabilitarla: " + error.getClass().getSimpleName(), Toast.LENGTH_LONG).show();
+                }
+            })
+            .setNegativeButton("Cancelar", null)
+            .show();
+    }
+
+    private void confirmEnableApp(String packageName, String appName) {
+        new AlertDialog.Builder(this)
+            .setTitle("Habilitar " + appName + "?")
+            .setMessage("Se intentará volver a habilitar el paquete " + packageName + ".")
+            .setPositiveButton("Habilitar", (d, w) -> {
+                try {
+                    getPackageManager().setApplicationEnabledSetting(
+                        packageName,
+                        PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                        0);
+                    Toast.makeText(this, appName + " habilitada.", Toast.LENGTH_LONG).show();
+                    showAppManager();
+                } catch (SecurityException denied) {
+                    new AlertDialog.Builder(this)
+                        .setTitle("Android bloqueó la operación")
+                        .setMessage("El sistema no concedió a TV Launcher PG permiso para habilitar esta aplicación. Abrí su ficha de información o usá ADB/Launcher Manager.")
+                        .setPositiveButton("Abrir información", (dialog, which) -> openAppInfo(packageName))
+                        .setNegativeButton("Cerrar", null)
+                        .show();
+                } catch (Exception error) {
+                    Toast.makeText(this, "No se pudo habilitarla: " + error.getClass().getSimpleName(), Toast.LENGTH_LONG).show();
                 }
             })
             .setNegativeButton("Cancelar", null)
