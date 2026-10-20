@@ -159,18 +159,18 @@ private final Runnable weatherLoop = new Runnable() {
     topBar.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1));
 
     // Identidad del launcher arriba a la derecha, junto al engranaje.
+    Button config = button("Personalizar", false);
+    config.setOnClickListener(v -> showPersonalizationMenu());
+    LinearLayout.LayoutParams configParams = new LinearLayout.LayoutParams(-2, dp(42));
+    configParams.rightMargin = dp(12);
+    topBar.addView(config, configParams);
+
     TextView logo = text("TV LAUNCHER PG", 15, white, true);
     logo.setGravity(Gravity.CENTER);
     logo.setTag("pg_logo");
     LinearLayout.LayoutParams logoParams = new LinearLayout.LayoutParams(-2, dp(42));
-    logoParams.rightMargin = dp(12);
+    logoParams.rightMargin = dp(8);
     topBar.addView(logo, logoParams);
-
-    Button config = button("Personalizar", false);
-    config.setOnClickListener(v -> showPersonalizationMenu());
-    LinearLayout.LayoutParams configParams = new LinearLayout.LayoutParams(-2, dp(42));
-    configParams.rightMargin = dp(8);
-    topBar.addView(config, configParams);
 
     Button systemSettings = button("⚙", false);
     systemSettings.setContentDescription("Ajustes del dispositivo");
@@ -1014,15 +1014,23 @@ private final Runnable weatherLoop = new Runnable() {
         LinearLayout.LayoutParams outerParams = new LinearLayout.LayoutParams(dp(260), dp(150));
         outerParams.rightMargin = dp(12);
         rail.addView(outer, outerParams);
-        loadImageInto(image, "https://image.tmdb.org/t/p/w500" + backdrop, shown * 70L);
+        loadImageInto(image, "https://image.tmdb.org/t/p/w780" + backdrop, shown * 70L);
 
         outer.setOnFocusChangeListener((v, focused) -> {
             v.animate().cancel();
             v.animate().scaleX(focused ? 1.055f : 1f).scaleY(focused ? 1.055f : 1f)
                     .translationZ(focused ? dp(8) : 0).setDuration(focused ? 150 : 110).start();
-            card.setBackground(mediaCardBackground());
-            if (focused) setHeroDebounced(title,
+            if (focused) {
+                GradientDrawable focusedSurface = glassDrawable(0xB82A3C59, 0xFFF0F6FF, 12);
+                focusedSurface.setStroke(dp(2), blue);
+                card.setBackground(focusedSurface);
+                card.setElevation(dp(10));
+                setHeroDebounced(title,
                     overview.isEmpty() ? "Explorá películas y series de tu catálogo." : overview, backdrop);
+            } else {
+                card.setBackground(mediaCardBackground());
+                card.setElevation(0);
+            }
         });
         outer.setOnClickListener(v -> showMediaDetails(title, overview, tv));
         shown++;
