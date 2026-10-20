@@ -978,37 +978,55 @@ private final Runnable weatherLoop = new Runnable() {
         final String title = mediaTitle(item);
         final String overview = jsonStr(item, "overview");
         final boolean tv = "tv".equals(jsonStr(item, "media_type"));
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setFocusable(true);
-        card.setClickable(true);
-        card.setPadding(dp(3), dp(3), dp(3), dp(3));
+
+        // Tarjeta cinematográfica ancha: el arte ocupa toda la superficie.
+        // El marco exterior deja espacio para la ampliación del foco del mando.
+        FrameLayout outer = new FrameLayout(this);
+        outer.setFocusable(true);
+        outer.setClickable(true);
+        outer.setClipChildren(false);
+        outer.setClipToPadding(false);
+
+        FrameLayout card = new FrameLayout(this);
         card.setBackground(mediaCardBackground());
         card.setClipToOutline(true);
+        outer.addView(card, new FrameLayout.LayoutParams(-1, -1));
+
         ImageView image = new ImageView(this);
         image.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        image.setBackgroundColor(0x33202a3d);
-        card.addView(image, new LinearLayout.LayoutParams(dp(200), dp(112)));
-        TextView label = text(title, 11, white, true);
-        label.setMaxLines(1);
+        image.setBackgroundColor(0xff202633);
+        card.addView(image, new FrameLayout.LayoutParams(-1, -1));
+
+        View shade = new View(this);
+        shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{0x00000000, 0x08000000, 0xD9000000}));
+        card.addView(shade, new FrameLayout.LayoutParams(-1, -1));
+
+        TextView label = text(title, 13, white, true);
+        label.setMaxLines(2);
         label.setEllipsize(TextUtils.TruncateAt.END);
-        label.setGravity(Gravity.CENTER_VERTICAL);
-        LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(dp(200), dp(24));
-        labelParams.topMargin = dp(3);
-        card.addView(label, labelParams);
-        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(dp(206), dp(148));
-        cardParams.rightMargin = dp(10);
-        rail.addView(card, cardParams);
-        loadImageInto(image, "https://image.tmdb.org/t/p/w300" + backdrop, shown * 60L);
-        shown++;
-        card.setOnFocusChangeListener((v, focused) -> {
-            animateCardFocus(v, focused);
+        label.setGravity(Gravity.BOTTOM | Gravity.LEFT);
+        label.setPadding(dp(12), 0, dp(10), dp(10));
+        card.addView(label, new FrameLayout.LayoutParams(-1, dp(52), Gravity.BOTTOM));
+
+        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(dp(252), dp(142));
+        cardParams.rightMargin = dp(12);
+        outer.addView(card, cardParams);
+        rail.addView(outer, new LinearLayout.LayoutParams(dp(260), dp(150)));
+        loadImageInto(image, "https://image.tmdb.org/t/p/w500" + backdrop, shown * 70L);
+
+        outer.setOnFocusChangeListener((v, focused) -> {
+            v.animate().cancel();
+            v.animate().scaleX(focused ? 1.055f : 1f).scaleY(focused ? 1.055f : 1f)
+                    .translationZ(focused ? dp(8) : 0).setDuration(focused ? 150 : 110).start();
+            card.setBackground(mediaCardBackground());
             if (focused) setHeroDebounced(title,
-                    overview.isEmpty() ? "Una recomendación para descubrir." : overview, backdrop);
+                    overview.isEmpty() ? "Explorá películas y series de tu catálogo." : overview, backdrop);
         });
-        card.setOnClickListener(v -> showMediaDetails(title, overview, tv));
+        outer.setOnClickListener(v -> showMediaDetails(title, overview, tv));
+        shown++;
     }
-    if (shown == 0) addCatalogPlaceholder(rail, "Sin recomendaciones por ahora");
+    if (shown == 0) addCatalogPlaceholder(rail, "Esperando contenido del catálogo");
 }
 
     private View buildWeatherWidget() {
