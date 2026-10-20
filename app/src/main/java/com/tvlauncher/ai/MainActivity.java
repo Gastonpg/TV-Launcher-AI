@@ -286,60 +286,66 @@ private final Runnable weatherLoop = new Runnable() {
                 return String.valueOf(a.loadLabel(pm)).compareToIgnoreCase(String.valueOf(b.loadLabel(pm)));
             }
         });
+
         for (android.content.pm.ResolveInfo info : apps) {
             if (info.activityInfo.packageName.equals(getPackageName())) continue;
             final String pkg = info.activityInfo.packageName;
             final String cls = info.activityInfo.name;
             final String name = String.valueOf(info.loadLabel(pm));
 
-            // Google TV-inspired favorites: icon medallion, no rectangular glass tile.
+            // App tiles: horizontal rounded rectangles, not circular medallions.
             LinearLayout tile = new LinearLayout(this);
             tile.setOrientation(LinearLayout.VERTICAL);
-            tile.setGravity(Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+            tile.setGravity(Gravity.CENTER_HORIZONTAL);
             tile.setFocusable(true);
             tile.setClickable(true);
-            tile.setPadding(dp(3), dp(5), dp(3), dp(4));
-            tile.setBackgroundColor(Color.TRANSPARENT);
+            tile.setClipChildren(false);
+            tile.setClipToPadding(false);
+            tile.setPadding(dp(4), dp(4), dp(4), dp(3));
 
-            FrameLayout medallion = new FrameLayout(this);
+            FrameLayout tileFace = new FrameLayout(this);
             GradientDrawable normal = new GradientDrawable();
-            normal.setShape(GradientDrawable.OVAL);
-            normal.setColor(0xff252a35);
-            normal.setStroke(dp(1), 0x55ffffff);
+            normal.setColor(0xAA202633);
+            normal.setCornerRadius(dp(12));
+            normal.setStroke(dp(1), 0x33ffffff);
+
             GradientDrawable focused = new GradientDrawable();
-            focused.setShape(GradientDrawable.OVAL);
-            focused.setColor(0xfff1f4fa);
-            focused.setStroke(dp(3), blue);
-            StateListDrawable states = new StateListDrawable();
-            states.addState(new int[]{android.R.attr.state_focused}, focused);
-            states.addState(new int[]{}, normal);
-            medallion.setBackground(states);
-            medallion.setClipToOutline(true);
+            focused.setColor(0xF0E8EDF5);
+            focused.setCornerRadius(dp(12));
+            focused.setStroke(dp(2), blue);
+
+            StateListDrawable faceStates = new StateListDrawable();
+            faceStates.addState(new int[]{android.R.attr.state_focused}, focused);
+            faceStates.addState(new int[]{}, normal);
+            tileFace.setBackground(faceStates);
+            tileFace.setClipToOutline(true);
 
             ImageView icon = new ImageView(this);
             icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
             try { icon.setImageDrawable(info.loadIcon(pm)); } catch (Exception ignored) { }
-            FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(42), dp(42), Gravity.CENTER);
-            medallion.addView(icon, iconParams);
-            tile.addView(medallion, new LinearLayout.LayoutParams(dp(68), dp(68)));
+            FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(44), dp(44), Gravity.CENTER);
+            tileFace.addView(icon, iconParams);
+            tile.addView(tileFace, new LinearLayout.LayoutParams(dp(112), dp(70)));
 
-            TextView label = text(name, 11, white, true);
+            TextView label = text(name, 12, white, true);
             label.setGravity(Gravity.CENTER);
             label.setMaxLines(1);
             label.setEllipsize(TextUtils.TruncateAt.END);
-            LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(dp(88), dp(22));
-            labelParams.topMargin = dp(7);
+            LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(dp(112), dp(24));
+            labelParams.topMargin = dp(5);
             tile.addView(label, labelParams);
 
             tile.setOnFocusChangeListener((v, hasFocus) -> {
                 v.animate().cancel();
-                v.animate().scaleX(hasFocus ? 1.12f : 1f).scaleY(hasFocus ? 1.12f : 1f)
-                        .translationY(hasFocus ? -dp(4) : 0f).setDuration(hasFocus ? 140 : 100).start();
+                v.animate().scaleX(hasFocus ? 1.06f : 1f).scaleY(hasFocus ? 1.06f : 1f)
+                        .translationY(hasFocus ? -dp(3) : 0f)
+                        .setDuration(hasFocus ? 140 : 100).start();
                 label.setTextColor(hasFocus ? 0xffffffff : 0xffd5d9e2);
                 if (hasFocus) selectApp(pkg, name);
             });
             tile.setOnClickListener(v -> launchApp(pkg, cls));
-            LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(dp(96), dp(106));
+
+            LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(dp(120), dp(108));
             item.rightMargin = dp(8);
             appRail.addView(tile, item);
         }
