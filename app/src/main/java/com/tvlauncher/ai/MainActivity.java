@@ -429,30 +429,47 @@ private final Runnable weatherLoop = new Runnable() {
             tileFace.setBackground(faceStates);
             tileFace.setClipToOutline(true);
 
-            // Fondo ambiental con el icono ampliado y atenuado; nunca se usa como logo principal.
+            // Google TV usa banners panorámicos cuando la app los declara. Priorizarlos
+            // permite llenar toda la tarjeta con arte original, sin estirar el icono cuadrado.
             Drawable appIcon = null;
+            Drawable appBanner = null;
             try { appIcon = info.loadIcon(pm); } catch (Exception ignored) { }
-            if (appIcon != null) {
+            try { appBanner = info.loadBanner(pm); } catch (Exception ignored) { }
+            if (appBanner == null) {
+                try {
+                    if (info.activityInfo.banner != 0) {
+                        appBanner = info.activityInfo.loadBanner(pm);
+                    }
+                } catch (Exception ignored) { }
+            }
+
+            if (appBanner != null) {
+                ImageView banner = new ImageView(this);
+                banner.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                banner.setImageDrawable(appBanner);
+                tileFace.addView(banner, new FrameLayout.LayoutParams(-1, -1));
+            } else if (appIcon != null) {
+                // Fallback para apps que no publican banner de TV: fondo ampliado del icono,
+                // oscurecido para crear una placa panorámica, y logo original sin deformar.
                 ImageView backdrop = new ImageView(this);
                 backdrop.setScaleType(ImageView.ScaleType.CENTER_CROP);
                 backdrop.setImageDrawable(appIcon);
-                backdrop.setAlpha(0.22f);
+                backdrop.setAlpha(0.42f);
                 tileFace.addView(backdrop, new FrameLayout.LayoutParams(-1, -1));
 
                 View tint = new View(this);
                 GradientDrawable tintGradient = new GradientDrawable(
-                        GradientDrawable.Orientation.TOP_BOTTOM,
-                        new int[]{0x33202d43, 0x99202d43});
+                        GradientDrawable.Orientation.LEFT_RIGHT,
+                        new int[]{0x22202d43, 0x99202d43});
                 tint.setBackground(tintGradient);
                 tileFace.addView(tint, new FrameLayout.LayoutParams(-1, -1));
 
-                // El logo conserva su proporción original y se renderiza centrado, sin deformarse.
                 ImageView icon = new ImageView(this);
                 icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-                icon.setPadding(dp(3), dp(3), dp(3), dp(3));
+                icon.setPadding(dp(2), dp(2), dp(2), dp(2));
                 icon.setImageDrawable(appIcon);
                 FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(
-                        dp(58), dp(58), Gravity.CENTER);
+                        dp(68), dp(60), Gravity.CENTER);
                 tileFace.addView(icon, iconParams);
             }
             tile.addView(tileFace, new LinearLayout.LayoutParams(dp(124), dp(64)));
