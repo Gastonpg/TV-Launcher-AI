@@ -1173,7 +1173,8 @@ private Drawable menuRowBackgroundFocused(boolean focused) {
     TextView label = text(title, 13, muted, true);
     label.setTypeface(Typeface.create("sans-serif-black", Typeface.NORMAL));
     LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-    lp.topMargin = dp(14);
+    // Dejar aire bajo la navegación para que el fondo cinematográfico se luzca detrás del carrusel.
+    lp.topMargin = dp("DESTACADOS PARA VOS".equals(title) ? 58 : 14);
     lp.leftMargin = dp(6);
     parent.addView(label, lp);
     return label;
@@ -1391,11 +1392,20 @@ private Drawable menuRowBackgroundFocused(boolean focused) {
             if (available.isEmpty()) return;
             item = available.get((int) (System.currentTimeMillis() % available.size()));
         }
-        final String posterPath = jsonStr(item, "poster_path");
+        // Para el fondo completo, priorizar el arte panorámico original de TMDB.
+        // Usar el póster vertical solo como respaldo, descargándolo en resolución original.
+        String imagePath = jsonStr(item, "backdrop_path");
+        String imageSize = "w1280";
+        if (imagePath.isEmpty()) {
+            imagePath = jsonStr(item, "poster_path");
+            imageSize = "original";
+        }
+        if (imagePath.isEmpty()) return;
+        final String imageUrl = "https://image.tmdb.org/t/p/" + imageSize + imagePath;
         final int token = ++backdropToken;
         executor.execute(() -> {
             try {
-                Bitmap bmp = getBitmapCached("https://image.tmdb.org/t/p/w780" + posterPath);
+                Bitmap bmp = getBitmapCached(imageUrl);
                 handler.post(() -> {
                     if (bmp != null && token == backdropToken) {
                         applyHeroBitmap(bmp);
