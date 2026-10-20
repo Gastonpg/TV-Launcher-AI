@@ -739,24 +739,115 @@ private final Runnable weatherLoop = new Runnable() {
     }
 
     private void showPersonalizationMenu() {
-    String[] options = new String[] {
+    final String[] options = new String[] {
         "Elegir imagen de fondo",
         "Usar fondos cinematográficos automáticos",
         "Configurar catálogo y API de TMDB",
         "Establecer como launcher predeterminado",
         "Ajustes del dispositivo"
     };
-    new AlertDialog.Builder(this)
-        .setTitle("Personalizar TV Launcher PG")
-        .setItems(options, (dialog, which) -> {
-            if (which == 0) chooseWallpaper();
-            else if (which == 1) useAutomaticWallpapers();
-            else if (which == 2) showCatalogSettings();
-            else if (which == 3) openHomeSettings();
+    final String[] descriptions = new String[] {
+        "Usá una imagen guardada en el dispositivo",
+        "Volver a los fondos de películas y series",
+        "Personalizá las recomendaciones y tu clave API",
+        "Elegí TV Launcher PG como pantalla de inicio",
+        "Abrí la configuración de Android"
+    };
+
+    LinearLayout panel = new LinearLayout(this);
+    panel.setOrientation(LinearLayout.VERTICAL);
+    panel.setPadding(dp(24), dp(22), dp(24), dp(16));
+    panel.setBackground(roundRect(0xff151a23, 0xff343c4a, 18));
+
+    TextView heading = text("Personalizar", 22, 0xfff5f7fb, true);
+    panel.addView(heading, new LinearLayout.LayoutParams(-1, -2));
+
+    TextView subtitle = text("TV LAUNCHER PG", 11, 0xffaebbd0, true);
+    subtitle.setLetterSpacing(0.08f);
+    LinearLayout.LayoutParams subtitleLp = new LinearLayout.LayoutParams(-1, -2);
+    subtitleLp.topMargin = dp(4);
+    subtitleLp.bottomMargin = dp(16);
+    panel.addView(subtitle, subtitleLp);
+
+    final AlertDialog dialog = new AlertDialog.Builder(this).create();
+    for (int i = 0; i < options.length; i++) {
+        final int index = i;
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.VERTICAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(14), dp(10), dp(14), dp(10));
+        row.setFocusable(true);
+        row.setClickable(true);
+        row.setBackground(menuRowBackground());
+
+        TextView title = text(options[i], 14, 0xfff1f4fa, true);
+        title.setMaxLines(1);
+        title.setEllipsize(TextUtils.TruncateAt.END);
+        row.addView(title, new LinearLayout.LayoutParams(-1, -2));
+
+        TextView detail = text(descriptions[i], 11, 0xffaab5c7, false);
+        detail.setMaxLines(2);
+        LinearLayout.LayoutParams detailLp = new LinearLayout.LayoutParams(-1, -2);
+        detailLp.topMargin = dp(3);
+        row.addView(detail, detailLp);
+
+        row.setOnClickListener(v -> {
+            dialog.dismiss();
+            if (index == 0) chooseWallpaper();
+            else if (index == 1) useAutomaticWallpapers();
+            else if (index == 2) showCatalogSettings();
+            else if (index == 3) openHomeSettings();
             else openSystemSettings();
-        })
-        .setNegativeButton("Cerrar", null)
-        .show();
+        });
+        row.setOnFocusChangeListener((v, focused) -> {
+            v.setBackground(menuRowBackgroundFocused(focused));
+            title.setTextColor(focused ? 0xffffffff : 0xfff1f4fa);
+            detail.setTextColor(focused ? 0xffdbe6f7 : 0xffaab5c7);
+        });
+        LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(-1, dp(62));
+        rowLp.bottomMargin = dp(4);
+        panel.addView(row, rowLp);
+    }
+
+    TextView close = text("CERRAR", 12, 0xffd5deed, true);
+    close.setGravity(Gravity.CENTER);
+    close.setFocusable(true);
+    close.setClickable(true);
+    close.setPadding(dp(18), dp(8), dp(18), dp(8));
+    close.setBackground(menuRowBackground());
+    close.setOnFocusChangeListener((v, focused) -> v.setBackground(menuRowBackgroundFocused(focused)));
+    close.setOnClickListener(v -> dialog.dismiss());
+    LinearLayout.LayoutParams closeLp = new LinearLayout.LayoutParams(-2, dp(38));
+    closeLp.gravity = Gravity.RIGHT;
+    closeLp.topMargin = dp(7);
+    panel.addView(close, closeLp);
+
+    dialog.setView(panel);
+    dialog.setOnShowListener(d -> {
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+            dialog.getWindow().setLayout(dp(430), -2);
+        }
+        panel.getChildAt(2).requestFocus();
+    });
+    dialog.show();
+}
+
+private GradientDrawable roundRect(int fill, int stroke, float radiusDp) {
+    GradientDrawable shape = new GradientDrawable();
+    shape.setColor(fill);
+    shape.setCornerRadius(dp(radiusDp));
+    if (stroke != 0) shape.setStroke(dp(1), stroke);
+    return shape;
+}
+
+private Drawable menuRowBackground() {
+    return roundRect(0x00151a23, 0x00343c4a, 10);
+}
+
+private Drawable menuRowBackgroundFocused(boolean focused) {
+    if (focused) return roundRect(0xff29384d, 0xff9fc5ff, 10);
+    return menuRowBackground();
 }
 
     private Drawable buttonGlassBackground(boolean primary) {
