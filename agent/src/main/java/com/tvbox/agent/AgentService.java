@@ -46,6 +46,7 @@ public class AgentService extends Service {
         StringBuilder s = new StringBuilder();
         for (byte x : b) s.append(String.format(Locale.US, "%02x", x & 0xff));
         token = s.toString();
+        getSharedPreferences("agent", MODE_PRIVATE).edit().putString("token", token).apply();
     }
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
