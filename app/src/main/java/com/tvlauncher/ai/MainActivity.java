@@ -58,6 +58,7 @@ public class MainActivity extends Activity {
     private ImageView heroImage;
     private TextView heroTitle, heroDescription, statusText;
     private LinearLayout appRail, movieRail, seriesRail, forYouRail;
+    private ScrollView pageScroll;
     private TextView weatherText;
     private String weatherCity = "Buenos Aires";
     private String tmdbKey = "";
@@ -84,6 +85,7 @@ public class MainActivity extends Activity {
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         tmdbKey = prefs().getString("tmdb_key", "").trim();
         customWallpaperUri = prefs().getString("wallpaper_uri", "");
+        weatherCity = prefs().getString("weather_city", "Buenos Aires");
         buildUi();
         loadApps();
         refreshCatalog();
