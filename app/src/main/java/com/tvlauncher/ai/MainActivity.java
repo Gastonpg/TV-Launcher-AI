@@ -24,6 +24,7 @@ import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.animation.DecelerateInterpolator;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -60,6 +61,7 @@ public class MainActivity extends Activity {
     private TextView heroTitle, heroDescription, statusText;
     private LinearLayout appRail, movieRail, seriesRail;
     private String tmdbKey = "";
+    private int cardAnimationStyle = 0;
     private String selectedPackage = "";
     private String selectedAppName = "";
     private static final int REQUEST_BACKGROUND_IMAGE = 7401;
@@ -98,6 +100,7 @@ private final Runnable weatherLoop = new Runnable() {
     super.onCreate(savedInstanceState);
     getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
     tmdbKey = prefs().getString("tmdb_key", "").trim();
+    cardAnimationStyle = prefs().getInt("card_animation_style", 0);
     customWallpaperUri = prefs().getString("wallpaper_uri", "");
     profileImageUri = prefs().getString("profile_image_uri", "");
     weatherCity = prefs().getString("weather_city", "Buenos Aires");
@@ -430,23 +433,20 @@ private final Runnable weatherLoop = new Runnable() {
             ImageView icon = new ImageView(this);
             icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
             try { icon.setImageDrawable(info.loadIcon(pm)); } catch (Exception ignored) { }
-            FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(44), dp(44), Gravity.CENTER);
+            FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(38), dp(38), Gravity.CENTER);
             tileFace.addView(icon, iconParams);
-            tile.addView(tileFace, new LinearLayout.LayoutParams(dp(112), dp(70)));
+            tile.addView(tileFace, new LinearLayout.LayoutParams(dp(104), dp(62)));
 
             TextView label = text(name, 12, white, true);
             label.setGravity(Gravity.CENTER);
             label.setMaxLines(1);
             label.setEllipsize(TextUtils.TruncateAt.END);
-            LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(dp(112), dp(24));
+            LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(dp(104), dp(24));
             labelParams.topMargin = dp(5);
             tile.addView(label, labelParams);
 
             tile.setOnFocusChangeListener((v, hasFocus) -> {
-                v.animate().cancel();
-                v.animate().scaleX(hasFocus ? 1.06f : 1f).scaleY(hasFocus ? 1.06f : 1f)
-                        .translationY(hasFocus ? -dp(3) : 0f)
-                        .setDuration(hasFocus ? 140 : 100).start();
+                animateSelectableCard(v, hasFocus);
                 label.setTextColor(hasFocus ? 0xffffffff : 0xffd5d9e2);
                 if (hasFocus) selectApp(pkg, name);
             });
@@ -747,6 +747,7 @@ private final Runnable weatherLoop = new Runnable() {
         "Elegir imagen de fondo",
         "Usar fondos cinematográficos automáticos",
         "Configurar catálogo y API de TMDB",
+        "Animaciones de selección",
         "Establecer como launcher predeterminado",
         "Ajustes del dispositivo"
     };
@@ -754,6 +755,7 @@ private final Runnable weatherLoop = new Runnable() {
         "Usá una imagen guardada en el dispositivo",
         "Volver a los fondos de películas y series",
         "Personalizá las recomendaciones y tu clave API",
+        "Elegí cómo se mueven las tarjetas al enfocarlas",
         "Elegí TV Launcher PG como pantalla de inicio",
         "Abrí la configuración de Android"
     };
@@ -801,7 +803,8 @@ private final Runnable weatherLoop = new Runnable() {
             if (index == 0) chooseWallpaper();
             else if (index == 1) useAutomaticWallpapers();
             else if (index == 2) showCatalogSettings();
-            else if (index == 3) openHomeSettings();
+            else if (index == 3) showCardAnimationSettings();
+            else if (index == 4) openHomeSettings();
             else openSystemSettings();
         });
         row.setOnFocusChangeListener((v, focused) -> {
@@ -1076,6 +1079,7 @@ private Drawable menuRowBackgroundFocused(boolean focused) {
 
     private TextView addSectionHeader(LinearLayout parent, String title) {
     TextView label = text(title, 13, muted, true);
+    label.setTypeface(Typeface.create("sans-serif-black", Typeface.NORMAL));
     LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
     lp.topMargin = dp(14);
     lp.leftMargin = dp(6);
@@ -1130,10 +1134,70 @@ private Drawable menuRowBackgroundFocused(boolean focused) {
 }
 
     private void animateCardFocus(View v, boolean focused) {
-    v.animate().cancel();
-    v.animate().scaleX(focused ? 1.07f : 1f).scaleY(focused ? 1.07f : 1f)
-            .setDuration(focused ? 130 : 100).start();
-}
+        animateSelectableCard(v, focused);
+    }
+
+    // Animación compartida por las apps y el carrusel de destacados.
+    private void animateSelectableCard(View v, boolean focused) {
+        v.animate().cancel();
+        float scale = 1f;
+        float lift = 0f;
+        long duration = focused ? 180 : 140;
+        switch (cardAnimationStyle) {
+            case 1: // Elevación: movimiento corto y discreto.
+                scale = focused ? 1.035f : 1f;
+                lift = focused ? -dp(6) : 0f;
+                duration = focused ? 190 : 150;
+                break;
+            case 2: // Zoom dinámico: más visible, sin exagerar.
+                scale = focused ? 1.08f : 1f;
+                lift = focused ? -dp(2) : 0f;
+                duration = focused ? 220 : 160;
+                break;
+            case 3: // Sin ampliación, mantiene solo el resaltado visual.
+                scale = 1f;
+                lift = 0f;
+                duration = focused ? 120 : 100;
+                break;
+            default: // Estilo Google TV: zoom suave con una pequeña elevación.
+                scale = focused ? 1.055f : 1f;
+                lift = focused ? -dp(2) : 0f;
+                break;
+        }
+        v.animate().scaleX(scale).scaleY(scale).translationY(lift)
+                .translationZ(focused ? dp(8) : 0f)
+                .setInterpolator(new DecelerateInterpolator())
+                .setDuration(duration).start();
+    }
+
+    private void showCardAnimationSettings() {
+        final String[] names = {
+            "Google TV · Zoom suave",
+            "Elevación · Movimiento discreto",
+            "Zoom dinámico · Más marcado",
+            "Sin zoom · Solo resaltado"
+        };
+        final String[] descriptions = {
+            "Ampliación suave y una pequeña elevación",
+            "La tarjeta se levanta sin crecer demasiado",
+            "Ampliación más visible al moverte por las tarjetas",
+            "Sin movimiento de tamaño; conserva el foco visual"
+        };
+        final String[] entries = new String[names.length];
+        for (int i = 0; i < names.length; i++) {
+            entries[i] = names[i] + "\\n" + descriptions[i];
+        }
+        new AlertDialog.Builder(this)
+            .setTitle("Animaciones de selección")
+            .setSingleChoiceItems(names, cardAnimationStyle, (dialog, which) -> {
+                cardAnimationStyle = which;
+                prefs().edit().putInt("card_animation_style", which).apply();
+                dialog.dismiss();
+                Toast.makeText(this, "Animación aplicada a apps y destacados", Toast.LENGTH_SHORT).show();
+            })
+            .setNegativeButton("Cerrar", null)
+            .show();
+    }
 
     private void scrollToView(final View target) {
     if (pageScroll == null || target == null) return;
@@ -1249,11 +1313,9 @@ private Drawable menuRowBackgroundFocused(boolean focused) {
         loadImageInto(image, "https://image.tmdb.org/t/p/w780" + backdrop, shown * 70L);
 
         outer.setOnFocusChangeListener((v, focused) -> {
-            v.animate().cancel();
-            v.animate().scaleX(focused ? 1.055f : 1f).scaleY(focused ? 1.055f : 1f)
-                    .translationZ(focused ? dp(8) : 0).setDuration(focused ? 150 : 110).start();
+            animateSelectableCard(v, focused);
             if (focused) {
-                GradientDrawable focusedSurface = glassDrawable(0xB82A3C59, 0xFFF0F6FF, 12);
+                GradientDrawable focusedSurface = roundRect(0xff263f68, blue, 12);
                 focusedSurface.setStroke(dp(2), blue);
                 card.setBackground(focusedSurface);
                 card.setElevation(dp(10));
