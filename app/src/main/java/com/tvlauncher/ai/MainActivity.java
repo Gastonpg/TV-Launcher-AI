@@ -253,17 +253,25 @@ private final Runnable weatherLoop = new Runnable() {
         // Solo la tuerca; la marca queda al final, inmediatamente a su derecha.
         Button settings = button("⚙", false);
         settings.setTextSize(20);
-        settings.setContentDescription("Ajustes del dispositivo");
-        settings.setOnClickListener(v -> openSystemSettings());
+        settings.setBackgroundColor(Color.TRANSPARENT);
+        settings.setElevation(0f);
+        settings.setMinWidth(0);
+        settings.setMinimumWidth(0);
+        settings.setContentDescription("Personalizar TV Launcher PG");
+        settings.setOnClickListener(v -> showPersonalizationMenu());
         LinearLayout.LayoutParams settingsLp = new LinearLayout.LayoutParams(dp(42), dp(42));
         settingsLp.leftMargin = dp(4);
         nav.addView(settings, settingsLp);
 
         TextView logo = text("TV LAUNCHER PG", 13, white, true);
-        logo.setGravity(Gravity.CENTER);
+        logo.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
         logo.setTag("pg_logo");
-        logo.setPadding(dp(10), 0, 0, 0);
-        nav.addView(logo, new LinearLayout.LayoutParams(-2, dp(44)));
+        logo.setSingleLine(true);
+        logo.setEllipsize(TextUtils.TruncateAt.END);
+        logo.setPadding(dp(12), 0, 0, 0);
+        LinearLayout.LayoutParams logoLp = new LinearLayout.LayoutParams(dp(126), dp(44));
+        logoLp.leftMargin = dp(4);
+        nav.addView(logo, logoLp);
 
         screen.addView(nav, new LinearLayout.LayoutParams(-1, dp(54)));
 
@@ -357,11 +365,14 @@ private final Runnable weatherLoop = new Runnable() {
 
     private TextView text(String value, float size, int color, boolean bold) {
         TextView t = new TextView(this); t.setText(value); t.setTextSize(size); t.setTextColor(color);
-        if (bold) t.setTypeface(Typeface.DEFAULT, Typeface.BOLD); return t;
+        // Tipografía sans-serif nativa de Android TV (Roboto): clara y legible a distancia.
+        t.setTypeface(Typeface.create("sans-serif", bold ? Typeface.BOLD : Typeface.NORMAL));
+        return t;
     }
 
     private Button button(String label, boolean primary) {
-        Button b = new Button(this); b.setText(label); b.setAllCaps(false); b.setTextSize(13); b.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+        Button b = new Button(this); b.setText(label); b.setAllCaps(false); b.setTextSize(13);
+        b.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
         b.setTextColor(primary ? Color.rgb(10,17,29) : white); b.setPadding(dp(13),0,dp(13),0); b.setFocusable(true);
         b.setTag(primary ? "primary_button" : "secondary_button");
         b.setBackground(buttonGlassBackground(primary)); return b;
@@ -729,11 +740,11 @@ private final Runnable weatherLoop = new Runnable() {
 
     private void showPersonalizationMenu() {
     String[] options = new String[] {
-        "Elegir imagen de la TV Box",
+        "Elegir imagen de fondo",
         "Usar fondos cinematográficos automáticos",
-        "Configurar catálogo de películas y series (TMDB)",
+        "Configurar catálogo y API de TMDB",
         "Establecer como launcher predeterminado",
-        "Región del clima y reloj"
+        "Ajustes del dispositivo"
     };
     new AlertDialog.Builder(this)
         .setTitle("Personalizar TV Launcher PG")
@@ -742,16 +753,21 @@ private final Runnable weatherLoop = new Runnable() {
             else if (which == 1) useAutomaticWallpapers();
             else if (which == 2) showCatalogSettings();
             else if (which == 3) openHomeSettings();
-            else showWeatherCityDialog();
+            else openSystemSettings();
         })
         .setNegativeButton("Cerrar", null)
         .show();
 }
 
     private Drawable buttonGlassBackground(boolean primary) {
-        GradientDrawable normal = glassDrawable(primary ? blendColor(blue, 0xff152236, 0.58f) : 0x66232f45, 0x66ffffff, 13);
-        GradientDrawable focused = glassDrawable(blendColor(blue, 0xff17283e, 0.28f), 0xffdceaff, 13);
-        focused.setStroke(dp(2), blue);
+        // Sin efecto liquid-glass: botones sólidos y limpios, al estilo de una interfaz de TV.
+        GradientDrawable normal = new GradientDrawable();
+        normal.setCornerRadius(dp(20));
+        normal.setColor(primary ? 0xfff1f3f7 : 0x00000000);
+        GradientDrawable focused = new GradientDrawable();
+        focused.setCornerRadius(dp(20));
+        focused.setColor(primary ? 0xffffffff : 0xff263244);
+        focused.setStroke(dp(2), primary ? 0xffffffff : 0xffdce6f7);
         StateListDrawable states = new StateListDrawable();
         states.addState(new int[]{android.R.attr.state_focused}, focused);
         states.addState(new int[]{}, normal);
@@ -795,8 +811,7 @@ private final Runnable weatherLoop = new Runnable() {
         Object tag = view.getTag();
         if ("accent_label".equals(tag) && view instanceof TextView) ((TextView) view).setTextColor(blue);
         else if ("pg_logo".equals(tag) && view instanceof TextView) {
-            GradientDrawable logoBg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xff17233a, blendColor(blue, Color.BLACK, 0.55f)});
-            logoBg.setCornerRadius(dp(13)); logoBg.setStroke(dp(2), blue); view.setBackground(logoBg);
+            view.setBackgroundColor(Color.TRANSPARENT);
         } else if ("primary_button".equals(tag) && view instanceof Button) ((Button) view).setBackground(buttonGlassBackground(true));
         else if ("secondary_button".equals(tag) && view instanceof Button) ((Button) view).setBackground(buttonGlassBackground(false));
         else if ("accent_tab".equals(tag) && view instanceof TextView) view.setBackground(tabBackground());
