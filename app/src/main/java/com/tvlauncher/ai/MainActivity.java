@@ -200,7 +200,7 @@ public class MainActivity extends Activity {
         Button change=button("▶  Cambiar destacado",true); change.setOnClickListener(v->changeFeatured());
         actions.addView(change,new LinearLayout.LayoutParams(-2,dp(46)));
         Button more=button("Más información",false); more.setOnClickListener(v->{
-            if(!trending.isEmpty()) showMediaDetails(trending.get(Math.abs(fallbackIndex++)%trending.size()), false);
+            if(!trending.isEmpty()) { JSONObject item=trending.get(Math.abs(fallbackIndex++)%trending.size()); String title=item.optString("title",item.optString("name","Contenido destacado")); String overview=item.optString("overview",""); boolean isTv="tv".equals(item.optString("media_type","")); showMediaDetails(title, overview, isTv); }
             else showCatalogSettings();
         });
         LinearLayout.LayoutParams moreP=new LinearLayout.LayoutParams(-2,dp(46));
