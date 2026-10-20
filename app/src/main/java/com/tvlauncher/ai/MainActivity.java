@@ -56,13 +56,15 @@ public class MainActivity extends Activity {
     private final int cardColor = Color.argb(225, 24, 33, 51);
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService executor = Executors.newFixedThreadPool(3);
-    private ImageView heroImage;
+    private ImageView heroImage, profileAvatar;
     private TextView heroTitle, heroDescription, statusText;
     private LinearLayout appRail, movieRail, seriesRail;
     private String tmdbKey = "";
     private String selectedPackage = "";
     private String selectedAppName = "";
     private static final int REQUEST_BACKGROUND_IMAGE = 7401;
+    private static final int REQUEST_PROFILE_IMAGE = 7402;
+    private String profileImageUri = "";
     private String customWallpaperUri = "";
     private final List<JSONObject> trending = new ArrayList<>();
     private int backdropToken = 0;
@@ -97,6 +99,7 @@ private final Runnable weatherLoop = new Runnable() {
     getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
     tmdbKey = prefs().getString("tmdb_key", "").trim();
     customWallpaperUri = prefs().getString("wallpaper_uri", "");
+    profileImageUri = prefs().getString("profile_image_uri", "");
     weatherCity = prefs().getString("weather_city", "Buenos Aires");
     try {
         String savedLat = prefs().getString("weather_lat", "");
@@ -223,28 +226,44 @@ private final Runnable weatherLoop = new Runnable() {
             tabs.addView(tab, tp);
         }
         navScroll.addView(tabs, new HorizontalScrollView.LayoutParams(-2, -1));
+
+        // Avatar circular a la izquierda: permite elegir una imagen como perfil de sesión.
+        profileAvatar = new ImageView(this);
+        profileAvatar.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        profileAvatar.setContentDescription("Agregar imagen de perfil");
+        profileAvatar.setFocusable(true);
+        profileAvatar.setClickable(true);
+        profileAvatar.setBackground(profileAvatarBackground());
+        profileAvatar.setClipToOutline(true);
+        profileAvatar.setImageResource(android.R.drawable.ic_menu_myplaces);
+        profileAvatar.setColorFilter(0xfff0f3fa);
+        if (!profileImageUri.isEmpty()) {
+            try {
+                profileAvatar.setImageURI(Uri.parse(profileImageUri));
+                profileAvatar.clearColorFilter();
+            } catch (Exception ignored) { }
+        }
+        profileAvatar.setOnClickListener(v -> chooseProfileImage());
+        LinearLayout.LayoutParams avatarLp = new LinearLayout.LayoutParams(dp(38), dp(38));
+        avatarLp.rightMargin = dp(12);
+        nav.addView(profileAvatar, 0, avatarLp);
+
         nav.addView(navScroll, new LinearLayout.LayoutParams(0, dp(54), 1f));
 
-        // Se conserva el widget translúcido pedido; la marca y el engranaje quedan juntos al extremo derecho.
-        View weather = buildWeatherWidget();
-        weather.setPadding(dp(10), dp(3), dp(11), dp(3));
-        LinearLayout.LayoutParams weatherLp = new LinearLayout.LayoutParams(-2, dp(42));
-        weatherLp.rightMargin = dp(8);
-        nav.addView(weather, weatherLp);
-
-        TextView logo = text("TV LAUNCHER PG", 13, white, true);
-        logo.setGravity(Gravity.CENTER);
-        logo.setTag("pg_logo");
-        logo.setPadding(dp(10), 0, dp(10), 0);
-        nav.addView(logo, new LinearLayout.LayoutParams(-2, dp(44)));
-
+        // Solo la tuerca; la marca queda al final, inmediatamente a su derecha.
         Button settings = button("⚙", false);
         settings.setTextSize(20);
         settings.setContentDescription("Ajustes del dispositivo");
         settings.setOnClickListener(v -> openSystemSettings());
-        LinearLayout.LayoutParams settingsLp = new LinearLayout.LayoutParams(dp(44), dp(42));
-        settingsLp.leftMargin = dp(2);
+        LinearLayout.LayoutParams settingsLp = new LinearLayout.LayoutParams(dp(42), dp(42));
+        settingsLp.leftMargin = dp(4);
         nav.addView(settings, settingsLp);
+
+        TextView logo = text("TV LAUNCHER PG", 13, white, true);
+        logo.setGravity(Gravity.CENTER);
+        logo.setTag("pg_logo");
+        logo.setPadding(dp(10), 0, 0, 0);
+        nav.addView(logo, new LinearLayout.LayoutParams(-2, dp(44)));
 
         screen.addView(nav, new LinearLayout.LayoutParams(-1, dp(54)));
 
@@ -842,8 +861,22 @@ private final Runnable weatherLoop = new Runnable() {
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode != REQUEST_BACKGROUND_IMAGE || resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
         Uri uri = data.getData();
+        if (requestCode == REQUEST_PROFILE_IMAGE) {
+            try {
+                int flags = data.getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION;
+                getContentResolver().takePersistableUriPermission(uri, flags);
+            } catch (Exception ignored) { }
+            profileImageUri = uri.toString();
+            prefs().edit().putString("profile_image_uri", profileImageUri).apply();
+            if (profileAvatar != null) {
+                profileAvatar.setImageURI(uri);
+                profileAvatar.clearColorFilter();
+            }
+            return;
+        }
+        if (requestCode != REQUEST_BACKGROUND_IMAGE) return;
         try {
             int flags = data.getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION;
             getContentResolver().takePersistableUriPermission(uri, flags);
@@ -856,6 +889,25 @@ private final Runnable weatherLoop = new Runnable() {
             Toast.makeText(this, "Fondo personalizado guardado", Toast.LENGTH_SHORT).show();
         } else {
             Toast.makeText(this, "No se pudo abrir esa imagen. Probá con otra.", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private GradientDrawable profileAvatarBackground() {
+        GradientDrawable d = new GradientDrawable();
+        d.setShape(GradientDrawable.OVAL);
+        d.setColor(0x663a465b);
+        d.setStroke(dp(1), 0x99e5eaf4);
+        return d;
+    }
+
+    private void chooseProfileImage() {
+        Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        pick.setType("image/*");
+        pick.addCategory(Intent.CATEGORY_OPENABLE);
+        try {
+            startActivityForResult(pick, REQUEST_PROFILE_IMAGE);
+        } catch (Exception e) {
+            Toast.makeText(this, "No se pudo abrir el selector de imágenes", Toast.LENGTH_SHORT).show();
         }
     }
 
