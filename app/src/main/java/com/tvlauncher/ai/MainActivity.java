@@ -413,7 +413,7 @@ private final Runnable weatherLoop = new Runnable() {
             final String cls = info.activityInfo.name;
             final String name = String.valueOf(info.loadLabel(pm));
 
-            // App tiles: horizontal rounded rectangles, not circular medallions.
+            // App tiles: el icono se adapta a todo el rectángulo, como una ficha de Google TV.
             LinearLayout tile = new LinearLayout(this);
             tile.setOrientation(LinearLayout.VERTICAL);
             tile.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -425,13 +425,13 @@ private final Runnable weatherLoop = new Runnable() {
 
             FrameLayout tileFace = new FrameLayout(this);
             GradientDrawable normal = new GradientDrawable();
-            normal.setColor(0xAA202633);
-            normal.setCornerRadius(dp(12));
-            normal.setStroke(dp(1), 0x33ffffff);
+            normal.setColor(0xff777e89);
+            normal.setCornerRadius(dp(5));
+            normal.setStroke(dp(1), 0xff858c97);
 
             GradientDrawable focused = new GradientDrawable();
-            focused.setColor(0xF0E8EDF5);
-            focused.setCornerRadius(dp(12));
+            focused.setColor(0xffe8edf5);
+            focused.setCornerRadius(dp(5));
             focused.setStroke(dp(2), blue);
 
             StateListDrawable faceStates = new StateListDrawable();
@@ -441,9 +441,11 @@ private final Runnable weatherLoop = new Runnable() {
             tileFace.setClipToOutline(true);
 
             ImageView icon = new ImageView(this);
-            icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            // FIT_XY llena el formato panorámico; así no queda un iconito cuadrado flotando.
+            icon.setScaleType(ImageView.ScaleType.FIT_XY);
             try { icon.setImageDrawable(info.loadIcon(pm)); } catch (Exception ignored) { }
-            FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(38), dp(38), Gravity.CENTER);
+            FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(-1, -1);
+            iconParams.setMargins(dp(1), dp(1), dp(1), dp(1));
             tileFace.addView(icon, iconParams);
             tile.addView(tileFace, new LinearLayout.LayoutParams(dp(124), dp(64)));
 
