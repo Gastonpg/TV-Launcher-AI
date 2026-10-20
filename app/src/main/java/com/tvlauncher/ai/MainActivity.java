@@ -178,6 +178,7 @@ private final Runnable weatherLoop = new Runnable() {
 
         String[] tabNames = {"Para vos", "Películas", "Series", "Apps", "Biblioteca"};
         final List<TextView> tabViews = new ArrayList<>();
+        final int[] selectedTab = new int[]{0};
         final int selectedText = 0xff17191e;
         final int idleText = 0xffe5e8ef;
         for (int i = 0; i < tabNames.length; i++) {
@@ -195,13 +196,14 @@ private final Runnable weatherLoop = new Runnable() {
                     tab.setTextColor(selectedText);
                     tab.setBackground(googleTvNavBackground(true));
                     tab.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-                } else if (tabViews.indexOf(tab) != 0) {
+                } else if (tabViews.indexOf(tab) != selectedTab[0]) {
                     tab.setTextColor(idleText);
                     tab.setBackground(googleTvNavBackground(false));
                     tab.setTypeface(Typeface.DEFAULT, Typeface.NORMAL);
                 }
             });
             tab.setOnClickListener(v -> {
+                selectedTab[0] = index;
                 for (int k = 0; k < tabViews.size(); k++) {
                     TextView item = tabViews.get(k);
                     boolean active = k == index;
