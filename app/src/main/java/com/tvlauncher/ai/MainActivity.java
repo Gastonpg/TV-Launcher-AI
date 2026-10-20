@@ -156,7 +156,7 @@ private final Runnable weatherLoop = new Runnable() {
         screen.setClipToPadding(false);
         root.addView(screen, new FrameLayout.LayoutParams(-1, -1));
 
-        // Barra de navegación clásica: categorías a la izquierda; identidad y ajustes a la derecha.
+        // ETAPA 1: cabecera. No modificar carruseles ni el área de fondo en esta etapa.
         LinearLayout nav = new LinearLayout(this);
         nav.setOrientation(LinearLayout.HORIZONTAL);
         nav.setGravity(Gravity.CENTER_VERTICAL);
@@ -169,6 +169,7 @@ private final Runnable weatherLoop = new Runnable() {
         navScroll.setClipChildren(false);
         navScroll.setClipToPadding(false);
         navScroll.setFocusable(false);
+
         LinearLayout tabs = new LinearLayout(this);
         tabs.setOrientation(LinearLayout.HORIZONTAL);
         tabs.setGravity(Gravity.CENTER_VERTICAL);
@@ -176,41 +177,72 @@ private final Runnable weatherLoop = new Runnable() {
         tabs.setClipToPadding(false);
 
         String[] tabNames = {"Para vos", "Películas", "Series", "Apps", "Biblioteca"};
+        final List<TextView> tabViews = new ArrayList<>();
+        final int selectedText = 0xff17191e;
+        final int idleText = 0xffe5e8ef;
         for (int i = 0; i < tabNames.length; i++) {
             final int index = i;
-            TextView tab = makeTab(tabNames[i], v -> {
+            TextView tab = text(tabNames[i], 14, i == 0 ? selectedText : idleText, i == 0);
+            tab.setGravity(Gravity.CENTER);
+            tab.setPadding(dp(15), 0, dp(15), 0);
+            tab.setFocusable(true);
+            tab.setClickable(true);
+            tab.setMinWidth(dp(62));
+            tab.setTag("google_tv_nav_tab");
+            tab.setBackground(googleTvNavBackground(i == 0));
+            tab.setOnFocusChangeListener((v, focused) -> {
+                if (focused) {
+                    tab.setTextColor(selectedText);
+                    tab.setBackground(googleTvNavBackground(true));
+                    tab.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+                } else if (tabViews.indexOf(tab) != 0) {
+                    tab.setTextColor(idleText);
+                    tab.setBackground(googleTvNavBackground(false));
+                    tab.setTypeface(Typeface.DEFAULT, Typeface.NORMAL);
+                }
+            });
+            tab.setOnClickListener(v -> {
+                for (int k = 0; k < tabViews.size(); k++) {
+                    TextView item = tabViews.get(k);
+                    boolean active = k == index;
+                    item.setBackground(googleTvNavBackground(active));
+                    item.setTextColor(active ? selectedText : idleText);
+                    item.setTypeface(Typeface.DEFAULT, active ? Typeface.BOLD : Typeface.NORMAL);
+                }
                 if (index == 0) pageScroll.post(() -> pageScroll.smoothScrollTo(0, 0));
                 else if (index == 1) scrollToView(moviesTitle);
                 else if (index == 2) scrollToView(seriesTitle);
                 else if (index == 3) scrollToView(appsTitle);
                 else scrollToView(forYouTitle);
             });
-            tab.setPadding(dp(13), 0, dp(13), 0);
-            LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-2, dp(42));
-            tp.rightMargin = dp(2);
+            tabViews.add(tab);
+            LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(-2, dp(38));
+            tp.rightMargin = dp(5);
             tabs.addView(tab, tp);
         }
         navScroll.addView(tabs, new HorizontalScrollView.LayoutParams(-2, -1));
         nav.addView(navScroll, new LinearLayout.LayoutParams(0, dp(54), 1f));
 
-        View navSpacer = new View(this);
-        nav.addView(navSpacer, new LinearLayout.LayoutParams(dp(10), 1));
-
+        // Se conserva el widget translúcido pedido; la marca y el engranaje quedan juntos al extremo derecho.
         View weather = buildWeatherWidget();
         weather.setPadding(dp(10), dp(3), dp(11), dp(3));
-        nav.addView(weather, new LinearLayout.LayoutParams(-2, dp(42)));
+        LinearLayout.LayoutParams weatherLp = new LinearLayout.LayoutParams(-2, dp(42));
+        weatherLp.rightMargin = dp(8);
+        nav.addView(weather, weatherLp);
 
         TextView logo = text("TV LAUNCHER PG", 13, white, true);
         logo.setGravity(Gravity.CENTER);
         logo.setTag("pg_logo");
-        logo.setPadding(dp(12), 0, dp(10), 0);
+        logo.setPadding(dp(10), 0, dp(10), 0);
         nav.addView(logo, new LinearLayout.LayoutParams(-2, dp(44)));
 
         Button settings = button("⚙", false);
         settings.setTextSize(20);
         settings.setContentDescription("Ajustes del dispositivo");
         settings.setOnClickListener(v -> openSystemSettings());
-        nav.addView(settings, new LinearLayout.LayoutParams(dp(46), dp(42)));
+        LinearLayout.LayoutParams settingsLp = new LinearLayout.LayoutParams(dp(44), dp(42));
+        settingsLp.leftMargin = dp(2);
+        nav.addView(settings, settingsLp);
 
         screen.addView(nav, new LinearLayout.LayoutParams(-1, dp(54)));
 
@@ -282,6 +314,15 @@ private final Runnable weatherLoop = new Runnable() {
         rows.addView(statusText, statusLp);
 
         setContentView(root);
+    }
+
+
+    private Drawable googleTvNavBackground(boolean selected) {
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(selected ? 0xfff1f3f7 : Color.TRANSPARENT);
+        bg.setCornerRadius(dp(22));
+        if (selected) bg.setStroke(dp(1), 0xfff1f3f7);
+        return bg;
     }
 
     private void addSectionTitle(LinearLayout content, String title) {
