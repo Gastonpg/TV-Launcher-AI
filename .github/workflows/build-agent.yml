@@ -1,0 +1,41 @@
+name: Build TV Box Agent APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - tvbox-agent-prototype
+    paths:
+      - 'agent/**'
+      - 'settings.gradle'
+      - '.github/workflows/build-agent.yml'
+
+jobs:
+  build-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.2.1'
+      - name: Install Android SDK
+        shell: bash
+        run: |
+          SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)
+          yes | "$SDKMANAGER" --licenses || true
+          "$SDKMANAGER" --install "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+      - name: Build agent APK
+        run: gradle --no-daemon :agent:assembleDebug
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: TV-Box-Agent-APK
+          path: agent/build/outputs/apk/debug/agent-debug.apk
+          if-no-files-found: error
