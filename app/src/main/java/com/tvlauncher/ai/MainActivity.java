@@ -64,21 +64,10 @@ public class MainActivity extends Activity {
     private int cardAnimationStyle = 0;
     private String selectedPackage = "";
     private String selectedAppName = "";
-    private static final int REQUEST_BACKGROUND_IMAGE = 7401;
     private static final int REQUEST_PROFILE_IMAGE = 7402;
     private String profileImageUri = "";
-    private String customWallpaperUri = "";
     private final List<JSONObject> trending = new ArrayList<>();
     private int backdropToken = 0;
-    private int fallbackIndex = 0;
-    private final String[] fallbackImages = new String[] {
-        "https://images.unsplash.com/photo-1440404653325-ab127d49abc1?auto=format&fit=crop&w=1280&q=75",
-        "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=1280&q=75",
-        "https://images.unsplash.com/photo-1478720568477-152d9b164e26?auto=format&fit=crop&w=1280&q=75",
-        "https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=1280&q=75",
-        "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1280&q=75",
-        "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?auto=format&fit=crop&w=1280&q=75"
-    };
 
     private ScrollView pageScroll;
 private LinearLayout forYouRail;
@@ -101,7 +90,6 @@ private final Runnable weatherLoop = new Runnable() {
     getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
     tmdbKey = prefs().getString("tmdb_key", "").trim();
     cardAnimationStyle = prefs().getInt("card_animation_style", 0);
-    customWallpaperUri = prefs().getString("wallpaper_uri", "");
     profileImageUri = prefs().getString("profile_image_uri", "");
     weatherCity = prefs().getString("weather_city", "Buenos Aires");
     try {
@@ -115,11 +103,10 @@ private final Runnable weatherLoop = new Runnable() {
     buildUi();
     loadApps();
     refreshCatalog();
-    if (hasCustomWallpaper()) applyCustomWallpaper();
     handler.postDelayed(weatherLoop, 800);
     handler.postDelayed(new Runnable() {
         @Override public void run() {
-            if (trending.isEmpty()) showFallback("Fondos online · configurá TMDB para cargar catálogos reales.");
+            if (trending.isEmpty()) showFallback("Configurá TMDB para cargar pósteres de películas.");
             handler.postDelayed(this, 60 * 1000L);
         }
     }, 60 * 1000L);
@@ -476,7 +463,6 @@ private final Runnable weatherLoop = new Runnable() {
     selectedAppName = name;
     heroTitle.setText(name);
     heroDescription.setText("Seleccionaste " + name + ". Explorá las recomendaciones o presioná OK para abrir la aplicación.");
-    if (hasCustomWallpaper()) return;
     String path = "";
     synchronized (trending) {
         if (!trending.isEmpty()) {
@@ -487,7 +473,6 @@ private final Runnable weatherLoop = new Runnable() {
 }
 
     private void loadBackdropForApp(String pkg) {
-        if (hasCustomWallpaper()) return;
         int index = Math.abs(pkg.hashCode()) % trending.size();
         JSONObject item = trending.get(index);
         String path = item.optString("backdrop_path", "");
@@ -537,7 +522,7 @@ private final Runnable weatherLoop = new Runnable() {
                 addMediaCards(movieRail, ma, false, 300);
                 addMediaCards(seriesRail, sa, true, 900);
                 statusText.setText("Catálogos online · TMDB · los enlaces de reproducción dependen de cada aplicación.");
-                if (selectedAppName.isEmpty() && !hasCustomWallpaper()) {
+                if (selectedAppName.isEmpty()) {
                     showRandomFeaturedPoster();
                 }
             });
@@ -670,9 +655,12 @@ private final Runnable weatherLoop = new Runnable() {
     }
 
     private void showFallback(String message) {
-        if (applyCustomWallpaper()) { statusText.setText("Fondo personalizado fijo"); return; }
-        final int index = fallbackIndex++ % fallbackImages.length; final int token=++backdropToken;
-        executor.execute(() -> { try { Bitmap bmp=getBitmap(fallbackImages[index]); handler.post(() -> { if(bmp!=null && token==backdropToken) applyHeroBitmap(bmp); if(selectedAppName.isEmpty()){ heroTitle.setText(new String[]{"Una noche de cine","Tu próxima aventura","Historias para descubrir","El espectáculo empieza acá","Tu pantalla, tu mundo","Un universo por explorar"}[index]); heroDescription.setText("Fondos cinematográficos online que cambian al elegir otro destacado."); } statusText.setText(message); }); } catch(Exception ignored) { handler.post(() -> statusText.setText("Sin conexión con las imágenes. Revisá internet.")); } });
+        statusTextIfReady(message);
+        if (!trending.isEmpty()) {
+            showRandomFeaturedPoster();
+        } else {
+            statusTextIfReady(message + " No hay pósteres disponibles hasta configurar TMDB.");
+        }
     }
 
     private JSONObject getJson(String urlText) throws Exception {
@@ -712,57 +700,19 @@ private final Runnable weatherLoop = new Runnable() {
         return BitmapFactory.decodeByteArray(data, 0, data.length, options);
     }
 
-    private boolean hasCustomWallpaper() {
-        return customWallpaperUri != null && !customWallpaperUri.trim().isEmpty();
-    }
-
-    private boolean applyCustomWallpaper() {
-        if (!hasCustomWallpaper() || heroImage == null) return false;
-        try {
-            Bitmap bmp = decodeUriScaled(Uri.parse(customWallpaperUri));
-            if (bmp != null) {
-                heroImage.setImageBitmap(bmp);
-                updateAccentFromBitmap(bmp);
-                statusTextIfReady("Fondo personalizado fijo");
-                return true;
-            }
-        } catch (Exception ignored) { }
-        customWallpaperUri = "";
-        prefs().edit().remove("wallpaper_uri").apply();
-        return false;
-    }
-
-    private Bitmap decodeUriScaled(Uri uri) throws Exception {
-        BitmapFactory.Options bounds = new BitmapFactory.Options();
-        bounds.inJustDecodeBounds = true;
-        try (InputStream in = getContentResolver().openInputStream(uri)) {
-            BitmapFactory.decodeStream(in, null, bounds);
-        }
-        int sample = 1;
-        while (bounds.outWidth / (sample * 2) >= 1280) sample *= 2;
-        BitmapFactory.Options options = new BitmapFactory.Options();
-        options.inSampleSize = sample;
-        options.inPreferredConfig = Bitmap.Config.RGB_565;
-        try (InputStream in = getContentResolver().openInputStream(uri)) {
-            return BitmapFactory.decodeStream(in, null, options);
-        }
-    }
-
     private void statusTextIfReady(String value) {
         if (statusText != null) statusText.setText(value);
     }
 
     private void showPersonalizationMenu() {
     final String[] options = new String[] {
-        "Elegir imagen de fondo",
-        "Usar fondos cinematográficos automáticos",
+        "Administrar y deshabilitar aplicaciones",
         "Configurar catálogo y API de TMDB",
         "Animaciones de selección",
         "Establecer como launcher predeterminado"
     };
     final String[] descriptions = new String[] {
-        "Usá una imagen guardada en el dispositivo",
-        "Volver a los fondos de películas y series",
+        "Consultar apps instaladas e intentar deshabilitarlas",
         "Personalizá las recomendaciones y tu clave API",
         "Elegí cómo se mueven las tarjetas al enfocarlas",
         "Elegí TV Launcher PG como pantalla de inicio"
@@ -808,10 +758,9 @@ private final Runnable weatherLoop = new Runnable() {
 
         row.setOnClickListener(v -> {
             dialog.dismiss();
-            if (index == 0) chooseWallpaper();
-            else if (index == 1) useAutomaticWallpapers();
-            else if (index == 2) showCatalogSettings();
-            else if (index == 3) showCardAnimationSettings();
+            if (index == 0) showAppManager();
+            else if (index == 1) showCatalogSettings();
+            else if (index == 2) showCardAnimationSettings();
             else openHomeSettings();
         });
         row.setOnFocusChangeListener((v, focused) -> {
@@ -960,59 +909,6 @@ private Drawable menuRowBackgroundFocused(boolean focused) {
         return Color.rgb(red, green, blueChannel);
     }
 
-    private void chooseWallpaper() {
-        try {
-            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-            intent.addCategory(Intent.CATEGORY_OPENABLE);
-            intent.setType("image/*");
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
-            startActivityForResult(intent, REQUEST_BACKGROUND_IMAGE);
-        } catch (Exception e) {
-            Toast.makeText(this, "Este sistema no permite elegir imágenes desde el almacenamiento.", Toast.LENGTH_LONG).show();
-        }
-    }
-
-    private void useAutomaticWallpapers() {
-        customWallpaperUri = "";
-        prefs().edit().remove("wallpaper_uri").apply();
-        heroImage.setImageDrawable(null);
-        changeFeatured();
-        Toast.makeText(this, "Fondos cinematográficos automáticos activados", Toast.LENGTH_SHORT).show();
-    }
-
-    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
-        Uri uri = data.getData();
-        if (requestCode == REQUEST_PROFILE_IMAGE) {
-            try {
-                int flags = data.getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION;
-                getContentResolver().takePersistableUriPermission(uri, flags);
-            } catch (Exception ignored) { }
-            profileImageUri = uri.toString();
-            prefs().edit().putString("profile_image_uri", profileImageUri).apply();
-            if (profileAvatar != null) {
-                profileAvatar.setImageURI(uri);
-                profileAvatar.clearColorFilter();
-            }
-            return;
-        }
-        if (requestCode != REQUEST_BACKGROUND_IMAGE) return;
-        try {
-            int flags = data.getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION;
-            getContentResolver().takePersistableUriPermission(uri, flags);
-        } catch (Exception ignored) { }
-        customWallpaperUri = uri.toString();
-        prefs().edit().putString("wallpaper_uri", customWallpaperUri).apply();
-        if (applyCustomWallpaper()) {
-            heroTitle.setText("Tu pantalla, tu mundo");
-            heroDescription.setText("Fondo personalizado activado. Volvé a Personalizar para usar fondos automáticos.");
-            Toast.makeText(this, "Fondo personalizado guardado", Toast.LENGTH_SHORT).show();
-        } else {
-            Toast.makeText(this, "No se pudo abrir esa imagen. Probá con otra.", Toast.LENGTH_LONG).show();
-        }
-    }
-
     private GradientDrawable profileAvatarBackground() {
         GradientDrawable d = new GradientDrawable();
         d.setShape(GradientDrawable.OVAL);
@@ -1029,6 +925,147 @@ private Drawable menuRowBackgroundFocused(boolean focused) {
             startActivityForResult(pick, REQUEST_PROFILE_IMAGE);
         } catch (Exception e) {
             Toast.makeText(this, "No se pudo abrir el selector de imágenes", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void showAppManager() {
+        PackageManager pm = getPackageManager();
+        List<android.content.pm.ApplicationInfo> installed;
+        try {
+            installed = pm.getInstalledApplications(0);
+        } catch (Exception e) {
+            new AlertDialog.Builder(this)
+                .setTitle("Administrador de aplicaciones")
+                .setMessage("El firmware no permite consultar las aplicaciones instaladas.")
+                .setPositiveButton("Abrir ajustes de aplicaciones", (d, w) -> openAppsSettings())
+                .setNegativeButton("Cerrar", null).show();
+            return;
+        }
+
+        Collections.sort(installed, new Comparator<android.content.pm.ApplicationInfo>() {
+            @Override public int compare(android.content.pm.ApplicationInfo a, android.content.pm.ApplicationInfo b) {
+                String an = String.valueOf(a.loadLabel(pm));
+                String bn = String.valueOf(b.loadLabel(pm));
+                return an.compareToIgnoreCase(bn);
+            }
+        });
+
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        list.setPadding(dp(12), dp(8), dp(12), dp(8));
+        TextView explanation = text(
+            "Elegí una app para intentar deshabilitarla. Android puede bloquear esta acción en aplicaciones del sistema; si la bloquea, abriremos su ficha de ajustes para comprobar las opciones disponibles. No deshabilites componentes esenciales.",
+            12, muted, false);
+        explanation.setPadding(dp(4), dp(4), dp(4), dp(12));
+        list.addView(explanation);
+
+        int added = 0;
+        for (android.content.pm.ApplicationInfo info : installed) {
+            final String pkg = info.packageName;
+            if (pkg == null || pkg.equals(getPackageName())) continue;
+            final String appName;
+            try { appName = String.valueOf(info.loadLabel(pm)); }
+            catch (Exception e) { continue; }
+
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(dp(8), dp(5), dp(4), dp(5));
+            row.setBackground(roundRect(0x44202d43, 0x335f6d82, 8));
+
+            ImageView icon = new ImageView(this);
+            try { icon.setImageDrawable(info.loadIcon(pm)); } catch (Exception ignored) { }
+            row.addView(icon, new LinearLayout.LayoutParams(dp(32), dp(32)));
+
+            LinearLayout labels = new LinearLayout(this);
+            labels.setOrientation(LinearLayout.VERTICAL);
+            TextView name = text(appName, 12, white, true);
+            name.setMaxLines(1);
+            name.setEllipsize(TextUtils.TruncateAt.END);
+            labels.addView(name);
+            TextView packageName = text(pkg, 9, muted, false);
+            packageName.setMaxLines(1);
+            packageName.setEllipsize(TextUtils.TruncateAt.MIDDLE);
+            labels.addView(packageName);
+            LinearLayout.LayoutParams labelsLp = new LinearLayout.LayoutParams(0, -2, 1f);
+            labelsLp.leftMargin = dp(8);
+            row.addView(labels, labelsLp);
+
+            Button disable = button("Deshabilitar", false);
+            disable.setTextSize(10);
+            disable.setPadding(dp(5), 0, dp(5), 0);
+            disable.setOnClickListener(v -> confirmDisableApp(pkg, appName));
+            row.addView(disable, new LinearLayout.LayoutParams(-2, dp(36)));
+
+            Button infoButton = button("Info", false);
+            infoButton.setTextSize(10);
+            infoButton.setPadding(dp(5), 0, dp(5), 0);
+            infoButton.setOnClickListener(v -> openAppInfo(pkg));
+            LinearLayout.LayoutParams infoLp = new LinearLayout.LayoutParams(-2, dp(36));
+            infoLp.leftMargin = dp(4);
+            row.addView(infoButton, infoLp);
+
+            LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(-1, dp(52));
+            rowLp.bottomMargin = dp(5);
+            list.addView(row, rowLp);
+            added++;
+        }
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(false);
+        scroll.setVerticalScrollBarEnabled(true);
+        scroll.addView(list, new ScrollView.LayoutParams(-1, -2));
+        new AlertDialog.Builder(this)
+            .setTitle("Administrador de aplicaciones (" + added + ")")
+            .setView(scroll)
+            .setPositiveButton("Ajustes de aplicaciones", (d, w) -> openAppsSettings())
+            .setNegativeButton("Cerrar", null)
+            .show();
+    }
+
+    private void confirmDisableApp(String packageName, String appName) {
+        new AlertDialog.Builder(this)
+            .setTitle("Deshabilitar " + appName + "?")
+            .setMessage("Se intentará deshabilitar el paquete " + packageName + ". Si es el launcher original, podrías necesitar restaurarlo desde Ajustes o ADB. TV Launcher PG no se deshabilitará a sí mismo.")
+            .setPositiveButton("Intentar", (d, w) -> {
+                try {
+                    getPackageManager().setApplicationEnabledSetting(
+                        packageName,
+                        PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER,
+                        0);
+                    Toast.makeText(this, appName + " deshabilitada.", Toast.LENGTH_LONG).show();
+                    showAppManager();
+                } catch (SecurityException denied) {
+                    new AlertDialog.Builder(this)
+                        .setTitle("Android bloqueó la operación")
+                        .setMessage("El sistema no concedió a TV Launcher PG permiso para deshabilitar esta aplicación. Agregar un permiso al manifiesto no alcanza si el firmware lo reserva al sistema. Podés abrir la ficha de la app para ver si Ajustes ofrece la opción, o usar ADB/Launcher Manager como alternativa.")
+                        .setPositiveButton("Abrir información", (dialog, which) -> openAppInfo(packageName))
+                        .setNeutralButton("Ajustes de apps", (dialog, which) -> openAppsSettings())
+                        .setNegativeButton("Cerrar", null)
+                        .show();
+                } catch (Exception error) {
+                    Toast.makeText(this, "No se pudo deshabilitarla: " + error.getClass().getSimpleName(), Toast.LENGTH_LONG).show();
+                }
+            })
+            .setNegativeButton("Cancelar", null)
+            .show();
+    }
+
+    private void openAppInfo(String packageName) {
+        try {
+            Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + packageName));
+            startActivity(intent);
+        } catch (Exception e) {
+            Toast.makeText(this, "No se pudo abrir la información de esa aplicación.", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void openAppsSettings() {
+        try {
+            Intent intent = new Intent(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS);
+            startActivity(intent);
+        } catch (Exception e) {
+            openSystemSettings();
         }
     }
 
@@ -1226,7 +1263,7 @@ private Drawable menuRowBackgroundFocused(boolean focused) {
 }
 
     private void setBackdropDebounced(final String backdropPath) {
-    if (hasCustomWallpaper() || backdropPath == null || backdropPath.isEmpty()) return;
+    if (backdropPath == null || backdropPath.isEmpty()) return;
     if (pendingHero != null) handler.removeCallbacks(pendingHero);
     final int token = ++backdropToken;
     pendingHero = () -> executor.execute(() -> {
@@ -1267,7 +1304,7 @@ private Drawable menuRowBackgroundFocused(boolean focused) {
 }
 
     private void showRandomFeaturedPoster() {
-        if (hasCustomWallpaper() || heroImage == null) return;
+        if (heroImage == null) return;
         final JSONObject item;
         synchronized (trending) {
             if (trending.isEmpty()) {
@@ -1287,7 +1324,7 @@ private Drawable menuRowBackgroundFocused(boolean focused) {
             try {
                 Bitmap bmp = getBitmapCached("https://image.tmdb.org/t/p/w780" + posterPath);
                 handler.post(() -> {
-                    if (bmp != null && token == backdropToken && !hasCustomWallpaper()) {
+                    if (bmp != null && token == backdropToken) {
                         applyHeroBitmap(bmp);
                         heroTitle.setText(mediaTitle(item));
                         heroDescription.setText(jsonStr(item, "overview"));
@@ -1364,14 +1401,14 @@ private Drawable menuRowBackgroundFocused(boolean focused) {
                 card.setBackground(mediaCardBackground());
                 card.setElevation(0);
                 handler.postDelayed(() -> {
-                    View focused = getCurrentFocus();
+                    View focusedView = getCurrentFocus();
                     boolean stillInFeatured = false;
-                    while (focused != null) {
-                        if (focused == forYouRail) { stillInFeatured = true; break; }
-                        android.view.ViewParent parent = focused.getParent();
-                        focused = parent instanceof View ? (View) parent : null;
+                    while (focusedView != null) {
+                        if (focusedView == forYouRail) { stillInFeatured = true; break; }
+                        android.view.ViewParent parent = focusedView.getParent();
+                        focusedView = parent instanceof View ? (View) parent : null;
                     }
-                    if (!stillInFeatured && !hasCustomWallpaper()) showRandomFeaturedPoster();
+                    if (!stillInFeatured) showRandomFeaturedPoster();
                 }, 260);
             }
         });
