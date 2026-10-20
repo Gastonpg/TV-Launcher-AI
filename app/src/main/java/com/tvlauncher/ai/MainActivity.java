@@ -934,6 +934,31 @@ private Drawable menuRowBackgroundFocused(boolean focused) {
         return d;
     }
 
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_PROFILE_IMAGE || resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        Uri uri = data.getData();
+        try {
+            int flags = data.getFlags() & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            getContentResolver().takePersistableUriPermission(uri, flags & Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        } catch (Exception ignored) { }
+        profileImageUri = uri.toString();
+        prefs().edit().putString("profile_image_uri", profileImageUri).apply();
+        if (profileAvatar != null) {
+            try {
+                profileAvatar.setImageURI(uri);
+                profileAvatar.clearColorFilter();
+                profileAvatar.setBackground(profileAvatarBackground());
+                profileAvatar.invalidate();
+            } catch (Exception e) {
+                profileAvatar.setImageResource(android.R.drawable.ic_menu_myplaces);
+                profileAvatar.setColorFilter(0xfff0f3fa);
+                Toast.makeText(this, "No se pudo cargar esa imagen", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
     private void chooseProfileImage() {
         Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         pick.setType("image/*");
