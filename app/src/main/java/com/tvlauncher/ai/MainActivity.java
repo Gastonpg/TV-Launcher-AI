@@ -25,6 +25,8 @@ import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.animation.DecelerateInterpolator;
+import android.view.animation.OvershootInterpolator;
+import android.view.animation.AccelerateDecelerateInterpolator;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -427,13 +429,32 @@ private final Runnable weatherLoop = new Runnable() {
             tileFace.setBackground(faceStates);
             tileFace.setClipToOutline(true);
 
-            ImageView icon = new ImageView(this);
-            // FIT_XY llena el formato panorámico; así no queda un iconito cuadrado flotando.
-            icon.setScaleType(ImageView.ScaleType.FIT_XY);
-            try { icon.setImageDrawable(info.loadIcon(pm)); } catch (Exception ignored) { }
-            FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(-1, -1);
-            iconParams.setMargins(dp(1), dp(1), dp(1), dp(1));
-            tileFace.addView(icon, iconParams);
+            // Fondo ambiental con el icono ampliado y atenuado; nunca se usa como logo principal.
+            Drawable appIcon = null;
+            try { appIcon = info.loadIcon(pm); } catch (Exception ignored) { }
+            if (appIcon != null) {
+                ImageView backdrop = new ImageView(this);
+                backdrop.setScaleType(ImageView.ScaleType.CENTER_CROP);
+                backdrop.setImageDrawable(appIcon);
+                backdrop.setAlpha(0.22f);
+                tileFace.addView(backdrop, new FrameLayout.LayoutParams(-1, -1));
+
+                View tint = new View(this);
+                GradientDrawable tintGradient = new GradientDrawable(
+                        GradientDrawable.Orientation.TOP_BOTTOM,
+                        new int[]{0x33202d43, 0x99202d43});
+                tint.setBackground(tintGradient);
+                tileFace.addView(tint, new FrameLayout.LayoutParams(-1, -1));
+
+                // El logo conserva su proporción original y se renderiza centrado, sin deformarse.
+                ImageView icon = new ImageView(this);
+                icon.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+                icon.setPadding(dp(3), dp(3), dp(3), dp(3));
+                icon.setImageDrawable(appIcon);
+                FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(
+                        dp(58), dp(58), Gravity.CENTER);
+                tileFace.addView(icon, iconParams);
+            }
             tile.addView(tileFace, new LinearLayout.LayoutParams(dp(124), dp(64)));
 
             TextView label = text(name, 12, white, true);
@@ -1194,49 +1215,69 @@ private Drawable menuRowBackgroundFocused(boolean focused) {
 
     // Animación compartida por las apps y el carrusel de destacados.
     private void animateSelectableCard(View v, boolean focused) {
+        if (v == null) return;
         v.animate().cancel();
+
         float scale = 1f;
         float lift = 0f;
-        long duration = focused ? 180 : 140;
+        float shiftX = 0f;
+        float elevation = focused ? dp(2) : 0f;
+        long duration = focused ? 210 : 150;
+        android.view.animation.Interpolator interpolator = new DecelerateInterpolator();
+
         switch (cardAnimationStyle) {
-            case 1: // Elevación: movimiento corto y discreto.
-                scale = focused ? 1.035f : 1f;
-                lift = focused ? -dp(6) : 0f;
-                duration = focused ? 190 : 150;
-                break;
-            case 2: // Zoom dinámico: más visible, sin exagerar.
-                scale = focused ? 1.08f : 1f;
-                lift = focused ? -dp(2) : 0f;
-                duration = focused ? 220 : 160;
-                break;
-            case 3: // Sin ampliación, mantiene solo el resaltado visual.
+            case 1: // Elevación pura: la tarjeta sube, pero no cambia de tamaño.
                 scale = 1f;
-                lift = 0f;
-                duration = focused ? 120 : 100;
+                lift = focused ? -dp(10) : 0f;
+                elevation = focused ? dp(12) : 0f;
+                duration = focused ? 240 : 170;
+                interpolator = new AccelerateDecelerateInterpolator();
                 break;
-            default: // Estilo Google TV: zoom suave con una pequeña elevación.
+            case 2: // Zoom con rebote claramente visible.
+                scale = focused ? 1.12f : 1f;
+                lift = focused ? -dp(3) : 0f;
+                elevation = focused ? dp(14) : 0f;
+                duration = focused ? 340 : 190;
+                interpolator = new OvershootInterpolator(1.35f);
+                break;
+            case 3: // Deslizamiento lateral: casi no amplía la tarjeta.
+                scale = focused ? 1.015f : 1f;
+                shiftX = focused ? dp(9) : 0f;
+                lift = 0f;
+                elevation = focused ? dp(5) : 0f;
+                duration = focused ? 230 : 160;
+                interpolator = new AccelerateDecelerateInterpolator();
+                break;
+            default: // Google TV: zoom moderado con elevación suave.
                 scale = focused ? 1.055f : 1f;
-                lift = focused ? -dp(2) : 0f;
+                lift = focused ? -dp(3) : 0f;
+                elevation = focused ? dp(8) : 0f;
+                duration = focused ? 190 : 145;
+                interpolator = new DecelerateInterpolator(1.7f);
                 break;
         }
-        v.animate().scaleX(scale).scaleY(scale).translationY(lift)
-                .translationZ(focused ? dp(8) : 0f)
-                .setInterpolator(new DecelerateInterpolator())
-                .setDuration(duration).start();
+
+        v.animate()
+                .scaleX(scale).scaleY(scale)
+                .translationY(lift).translationX(shiftX)
+                .translationZ(elevation)
+                .setInterpolator(interpolator)
+                .setDuration(duration)
+                .start();
     }
 
     private void showCardAnimationSettings() {
         final String[] names = {
             "Google TV · Zoom suave",
-            "Elevación · Movimiento discreto",
-            "Zoom dinámico · Más marcado",
-            "Sin zoom · Solo resaltado"
+            "Elevación · Sube sin agrandarse",
+            "Rebote · Zoom dinámico",
+            "Deslizamiento · Movimiento lateral"
         };
         final String[] descriptions = {
-            "Ampliación suave y una pequeña elevación",
-            "La tarjeta se levanta sin crecer demasiado",
-            "Ampliación más visible al moverte por las tarjetas",
-            "Sin movimiento de tamaño; conserva el foco visual"
+            "Aumenta un poco de tamaño y se eleva suavemente",
+            "Sube bastante, sin cambiar el tamaño de la tarjeta",
+            "Zoom más grande con un rebote al llegar al foco",
+            "Se desplaza hacia un lado sin agrandarse casi nada"
         };
         final String[] entries = new String[names.length];
         for (int i = 0; i < names.length; i++) {
@@ -1248,7 +1289,12 @@ private Drawable menuRowBackgroundFocused(boolean focused) {
                 cardAnimationStyle = which;
                 prefs().edit().putInt("card_animation_style", which).apply();
                 dialog.dismiss();
-                Toast.makeText(this, "Animación aplicada a apps y destacados", Toast.LENGTH_SHORT).show();
+                // Reproducir la nueva animación enseguida para que se note el cambio.
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    View focusedView = getWindow().getDecorView().findFocus();
+                    if (focusedView != null) animateSelectableCard(focusedView, true);
+                }, 180);
+                Toast.makeText(this, "Animación guardada; movete entre tarjetas para verla", Toast.LENGTH_SHORT).show();
             })
             .setNegativeButton("Cerrar", null)
             .show();
