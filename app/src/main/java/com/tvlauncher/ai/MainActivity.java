@@ -115,7 +115,7 @@ private final Runnable weatherLoop = new Runnable() {
     buildUi();
     loadApps();
     refreshCatalog();
-    if (!applyCustomWallpaper()) showFallback("Preparando TV Launcher PG…");
+    if (hasCustomWallpaper()) applyCustomWallpaper();
     handler.postDelayed(weatherLoop, 800);
     handler.postDelayed(new Runnable() {
         @Override public void run() {
@@ -523,7 +523,7 @@ private final Runnable weatherLoop = new Runnable() {
                 trending.clear();
                 if (t != null) for (int i = 0; i < t.length(); i++) {
                     JSONObject o = t.optJSONObject(i);
-                    if (o != null && !jsonStr(o, "backdrop_path").isEmpty()) trending.add(o);
+                    if (o != null && !jsonStr(o, "poster_path").isEmpty()) trending.add(o);
                 }
             }
             JSONObject movies = getJson("https://api.themoviedb.org/3/movie/popular?api_key=" + enc(tmdbKey) + "&language=es-ES&page=1");
@@ -537,10 +537,8 @@ private final Runnable weatherLoop = new Runnable() {
                 addMediaCards(movieRail, ma, false, 300);
                 addMediaCards(seriesRail, sa, true, 900);
                 statusText.setText("Catálogos online · TMDB · los enlaces de reproducción dependen de cada aplicación.");
-                if (selectedAppName.isEmpty()) {
-                    JSONObject first = null;
-                    synchronized (trending) { if (!trending.isEmpty()) first = trending.get(0); }
-                    if (first != null) setHeroDebounced(mediaTitle(first), jsonStr(first, "overview"), jsonStr(first, "backdrop_path"));
+                if (selectedAppName.isEmpty() && !hasCustomWallpaper()) {
+                    showRandomFeaturedPoster();
                 }
             });
         } catch (Exception e) {
@@ -1268,6 +1266,37 @@ private Drawable menuRowBackgroundFocused(boolean focused) {
     return t.isEmpty() ? "Sin título" : t;
 }
 
+    private void showRandomFeaturedPoster() {
+        if (hasCustomWallpaper() || heroImage == null) return;
+        final JSONObject item;
+        synchronized (trending) {
+            if (trending.isEmpty()) {
+                statusTextIfReady("Configurá TMDB para mostrar pósteres de películas.");
+                return;
+            }
+            List<JSONObject> available = new ArrayList<>();
+            for (JSONObject candidate : trending) {
+                if (!jsonStr(candidate, "poster_path").isEmpty()) available.add(candidate);
+            }
+            if (available.isEmpty()) return;
+            item = available.get((int) (System.currentTimeMillis() % available.size()));
+        }
+        final String posterPath = jsonStr(item, "poster_path");
+        final int token = ++backdropToken;
+        executor.execute(() -> {
+            try {
+                Bitmap bmp = getBitmapCached("https://image.tmdb.org/t/p/w780" + posterPath);
+                handler.post(() -> {
+                    if (bmp != null && token == backdropToken && !hasCustomWallpaper()) {
+                        applyHeroBitmap(bmp);
+                        heroTitle.setText(mediaTitle(item));
+                        heroDescription.setText(jsonStr(item, "overview"));
+                    }
+                });
+            } catch (Exception ignored) { }
+        });
+    }
+
     private void fillForYou() {
     forYouRail.removeAllViews();
     List<JSONObject> copy;
@@ -1329,10 +1358,21 @@ private Drawable menuRowBackgroundFocused(boolean focused) {
                 card.setBackground(focusedSurface);
                 card.setElevation(dp(10));
                 setHeroDebounced(title,
-                    overview.isEmpty() ? "Explorá películas y series de tu catálogo." : overview, backdrop);
+                    overview.isEmpty() ? "Explorá películas y series de tu catálogo." : overview,
+                    jsonStr(item, "poster_path"));
             } else {
                 card.setBackground(mediaCardBackground());
                 card.setElevation(0);
+                handler.postDelayed(() -> {
+                    View focused = getCurrentFocus();
+                    boolean stillInFeatured = false;
+                    while (focused != null) {
+                        if (focused == forYouRail) { stillInFeatured = true; break; }
+                        android.view.ViewParent parent = focused.getParent();
+                        focused = parent instanceof View ? (View) parent : null;
+                    }
+                    if (!stillInFeatured && !hasCustomWallpaper()) showRandomFeaturedPoster();
+                }, 260);
             }
         });
         outer.setOnClickListener(v -> showMediaDetails(title, overview, tv));
