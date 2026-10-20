@@ -32,7 +32,6 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.TextClock;
 import android.widget.Toast;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -47,6 +46,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import android.util.LruCache;
+import android.widget.TextClock;
 
 public class MainActivity extends Activity {
     private final int white = Color.WHITE;
@@ -57,10 +58,7 @@ public class MainActivity extends Activity {
     private final ExecutorService executor = Executors.newFixedThreadPool(3);
     private ImageView heroImage;
     private TextView heroTitle, heroDescription, statusText;
-    private LinearLayout appRail, movieRail, seriesRail, forYouRail;
-    private ScrollView pageScroll;
-    private TextView weatherText;
-    private String weatherCity = "Buenos Aires";
+    private LinearLayout appRail, movieRail, seriesRail;
     private String tmdbKey = "";
     private String selectedPackage = "";
     private String selectedAppName = "";
@@ -78,177 +76,180 @@ public class MainActivity extends Activity {
         "https://images.unsplash.com/photo-1462331940025-496dfbfc7564?auto=format&fit=crop&w=1280&q=75"
     };
 
+    private ScrollView pageScroll;
+private LinearLayout forYouRail;
+private TextView appsTitle, forYouTitle, moviesTitle, seriesTitle;
+private TextView weatherText, regionText;
+private String weatherCity = "Buenos Aires";
+private volatile double weatherLat = Double.NaN, weatherLon = Double.NaN;
+private Runnable pendingHero;
+private final LruCache<String, Bitmap> imageCache = new LruCache<String, Bitmap>(12 * 1024 * 1024) {
+    @Override protected int sizeOf(String key, Bitmap value) { return value.getByteCount(); }
+};
+private final Runnable weatherLoop = new Runnable() {
+    @Override public void run() { loadWeather(); handler.postDelayed(this, 30 * 60 * 1000L); }
+};
+
     private SharedPreferences prefs() { return getSharedPreferences("tvpg", MODE_PRIVATE); }
 
     @Override public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
-        tmdbKey = prefs().getString("tmdb_key", "").trim();
-        customWallpaperUri = prefs().getString("wallpaper_uri", "");
-        weatherCity = prefs().getString("weather_city", "Buenos Aires");
-        buildUi();
-        loadApps();
-        refreshCatalog();
-        if (!applyCustomWallpaper()) showFallback("Preparando TV Launcher PG…");
-        handler.postDelayed(new Runnable() {
-            @Override public void run() {
-                if (trending.isEmpty()) showFallback("Fondos online · configurá TMDB para cargar catálogos reales.");
-                handler.postDelayed(this, 60 * 1000L);
-            }
-        }, 60 * 1000L);
-    }
+    super.onCreate(savedInstanceState);
+    getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+    tmdbKey = prefs().getString("tmdb_key", "").trim();
+    customWallpaperUri = prefs().getString("wallpaper_uri", "");
+    weatherCity = prefs().getString("weather_city", "Buenos Aires");
+    try {
+        String savedLat = prefs().getString("weather_lat", "");
+        String savedLon = prefs().getString("weather_lon", "");
+        if (!savedLat.isEmpty() && !savedLon.isEmpty()) {
+            weatherLat = Double.parseDouble(savedLat);
+            weatherLon = Double.parseDouble(savedLon);
+        }
+    } catch (Exception ignored) { }
+    buildUi();
+    loadApps();
+    refreshCatalog();
+    if (!applyCustomWallpaper()) showFallback("Preparando TV Launcher PG…");
+    handler.postDelayed(weatherLoop, 800);
+    handler.postDelayed(new Runnable() {
+        @Override public void run() {
+            if (trending.isEmpty()) showFallback("Fondos online · configurá TMDB para cargar catálogos reales.");
+            handler.postDelayed(this, 60 * 1000L);
+        }
+    }, 60 * 1000L);
+}
 
     private void buildUi() {
-        FrameLayout root = new FrameLayout(this);
-        root.setBackgroundColor(Color.rgb(8, 11, 19));
-        heroImage = new ImageView(this);
-        heroImage.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        root.addView(heroImage, new FrameLayout.LayoutParams(-1, -1));
-        View leftShade = new View(this);
-        leftShade.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                new int[]{0xee080d18, 0xaa080d18, 0x33080d18, 0x00080d18}));
-        root.addView(leftShade, new FrameLayout.LayoutParams(-1, -1));
-        View bottomShade = new View(this);
-        bottomShade.setBackground(new GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP,
-                new int[]{0xff080b13, 0xe6080b13, 0x00080b13}));
-        FrameLayout.LayoutParams bsp = new FrameLayout.LayoutParams(-1, dp(410), Gravity.BOTTOM);
-        root.addView(bottomShade, bsp);
+    FrameLayout root = new FrameLayout(this);
+    root.setBackgroundColor(Color.rgb(10, 13, 21));
+    heroImage = new ImageView(this);
+    heroImage.setScaleType(ImageView.ScaleType.CENTER_CROP);
+    root.addView(heroImage, new FrameLayout.LayoutParams(-1, -1));
 
-        pageScroll = new ScrollView(this);
-        pageScroll.setFillViewport(false);
-        pageScroll.setClipToPadding(false);
-        pageScroll.setVerticalScrollBarEnabled(false);
-        LinearLayout content = new LinearLayout(this);
-        content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(38), dp(20), dp(38), dp(28));
-        pageScroll.addView(content, new ScrollView.LayoutParams(-1, -2));
-        root.addView(pageScroll, new FrameLayout.LayoutParams(-1, -1));
+    // Degradados oscuros para que el texto se lea sobre cualquier imagen.
+    // Cubren solo parte de la pantalla para no gastar de más en la GPU.
+    int screenW = getResources().getDisplayMetrics().widthPixels;
+    int screenH = getResources().getDisplayMetrics().heightPixels;
+    View leftScrim = new View(this);
+    leftScrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+            new int[]{0xE6070A12, 0x99070A12, 0x00070A12}));
+    root.addView(leftScrim, new FrameLayout.LayoutParams(screenW * 7 / 10, -1, Gravity.LEFT));
+    View bottomScrim = new View(this);
+    bottomScrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+            new int[]{0x00070A12, 0xB3070A12, 0xF2070A12}));
+    root.addView(bottomScrim, new FrameLayout.LayoutParams(-1, screenH * 6 / 10, Gravity.BOTTOM));
+    View topScrim = new View(this);
+    topScrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+            new int[]{0x99070A12, 0x00070A12}));
+    root.addView(topScrim, new FrameLayout.LayoutParams(-1, dp(100), Gravity.TOP));
 
-        LinearLayout header = new LinearLayout(this);
-        header.setGravity(Gravity.CENTER_VERTICAL);
-        TextView logo = text("PG", 21, white, true);
-        logo.setGravity(Gravity.CENTER);
-        logo.setTag("pg_logo");
-        GradientDrawable logoBg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                new int[]{0xff17233a, blendColor(blue, Color.BLACK, 0.55f)});
-        logoBg.setCornerRadius(dp(13)); logoBg.setStroke(dp(2), blue); logo.setBackground(logoBg);
-        header.addView(logo, new LinearLayout.LayoutParams(dp(52), dp(46)));
-        TextView brand = text("TV LAUNCHER", 17, white, true);
-        LinearLayout.LayoutParams brandP = new LinearLayout.LayoutParams(-2, -2);
-        brandP.leftMargin = dp(12); header.addView(brand, brandP);
-        TextView pg = text("PG", 11, blue, true);
-        LinearLayout.LayoutParams pgP = new LinearLayout.LayoutParams(-2, -2);
-        pgP.leftMargin = dp(6); header.addView(pg, pgP);
-        View flexible = new View(this);
-        header.addView(flexible, new LinearLayout.LayoutParams(0, 1, 1));
-        LinearLayout clockBox = new LinearLayout(this);
-        clockBox.setGravity(Gravity.CENTER_VERTICAL);
-        clockBox.setOrientation(LinearLayout.VERTICAL);
-        clockBox.setPadding(dp(14), dp(6), dp(14), dp(6));
-        clockBox.setBackground(glassDrawable(0x66202a3b, 0x44ffffff, 14));
-        TextClock clock = new TextClock(this);
-        clock.setFormat24Hour("HH:mm");
-        clock.setFormat12Hour("h:mm a");
-        clock.setTextColor(white); clock.setTextSize(20); clock.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
-        clockBox.addView(clock);
-        weatherText = text("Clima · " + weatherCity, 10, muted, false);
-        clockBox.addView(weatherText);
-        LinearLayout.LayoutParams clockP = new LinearLayout.LayoutParams(-2, -2);
-        clockP.rightMargin = dp(12); header.addView(clockBox, clockP);
-        Button systemSettings = button("⚙ Ajustes del TV", false);
-        systemSettings.setOnClickListener(v -> openSystemSettings());
-        header.addView(systemSettings, new LinearLayout.LayoutParams(-2, dp(44)));
-        Button config = button("Personalizar", true);
-        config.setOnClickListener(v -> showPersonalizationMenu());
-        LinearLayout.LayoutParams configP = new LinearLayout.LayoutParams(-2, dp(44));
-        configP.leftMargin = dp(8); header.addView(config, configP);
-        content.addView(header, new LinearLayout.LayoutParams(-1, dp(54)));
+    LinearLayout column = new LinearLayout(this);
+    column.setOrientation(LinearLayout.VERTICAL);
+    column.setPadding(dp(40), dp(14), dp(40), dp(8));
+    root.addView(column, new FrameLayout.LayoutParams(-1, -1));
 
-        LinearLayout tabs = new LinearLayout(this);
-        tabs.setGravity(Gravity.CENTER_VERTICAL);
-        String[] tabNames = new String[]{"Inicio", "Aplicaciones", "Para vos", "Películas", "Series"};
-        for (int i=0;i<tabNames.length;i++) {
-            final int tabIndex=i;
-            TextView tab=text(tabNames[i], 13, i==0?white:muted, i==0);
-            tab.setGravity(Gravity.CENTER);
-            tab.setPadding(dp(13), dp(9), dp(13), dp(9));
-            tab.setFocusable(true); tab.setClickable(true); tab.setTag("accent_tab");
-            tab.setBackground(i==0?buttonGlassBackground(true):buttonGlassBackground(false));
-            tab.setOnClickListener(v -> {
-                View target = tabIndex==1 ? appRail : tabIndex==2 ? forYouRail : tabIndex==3 ? movieRail : tabIndex==4 ? seriesRail : heroTitle;
-                if(target!=null) scrollToView(target);
-            });
-            LinearLayout.LayoutParams tabP=new LinearLayout.LayoutParams(-2,dp(40));
-            tabP.rightMargin=dp(5); tabs.addView(tab,tabP);
-        }
-        LinearLayout.LayoutParams tabsP=new LinearLayout.LayoutParams(-1,dp(46));
-        tabsP.topMargin=dp(10); content.addView(tabs,tabsP);
+    // ---- Barra superior: logo, pestañas, ajustes, personalizar, reloj y clima ----
+    LinearLayout topBar = new LinearLayout(this);
+    topBar.setGravity(Gravity.CENTER_VERTICAL);
+    TextView logo = text("PG", 18, white, true);
+    logo.setGravity(Gravity.CENTER);
+    logo.setTag("pg_logo");
+    GradientDrawable logoBg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+            new int[]{0xff17233a, blendColor(blue, Color.BLACK, 0.55f)});
+    logoBg.setCornerRadius(dp(12));
+    logoBg.setStroke(dp(2), blue);
+    logo.setBackground(logoBg);
+    topBar.addView(logo, new LinearLayout.LayoutParams(dp(46), dp(40)));
 
-        View spacer = new View(this);
-        content.addView(spacer, new LinearLayout.LayoutParams(1, dp(34)));
-        TextView featuredLabel = text("DESTACADO PARA VOS", 12, blue, true);
-        featuredLabel.setTag("accent_label"); content.addView(featuredLabel);
-        heroTitle = text("Tu pantalla, tu mundo", 36, white, true);
-        heroTitle.setMaxLines(2);
-        LinearLayout.LayoutParams titleP=new LinearLayout.LayoutParams(dp(700),-2);
-        titleP.topMargin=dp(7); content.addView(heroTitle,titleP);
-        heroDescription = text("Tus aplicaciones y recomendaciones en un solo lugar.", 15, muted, false);
-        heroDescription.setMaxLines(3);
-        LinearLayout.LayoutParams descP=new LinearLayout.LayoutParams(dp(590),-2);
-        descP.topMargin=dp(8); content.addView(heroDescription,descP);
-        LinearLayout actions=new LinearLayout(this); actions.setGravity(Gravity.CENTER_VERTICAL);
-        Button change=button("▶  Cambiar destacado",true); change.setOnClickListener(v->changeFeatured());
-        actions.addView(change,new LinearLayout.LayoutParams(-2,dp(46)));
-        Button more=button("Más información",false); more.setOnClickListener(v->{
-            if(!trending.isEmpty()) { JSONObject item=trending.get(Math.abs(fallbackIndex++)%trending.size()); String title=item.optString("title",item.optString("name","Contenido destacado")); String overview=item.optString("overview",""); boolean isTv="tv".equals(item.optString("media_type","")); showMediaDetails(title, overview, isTv); }
-            else showCatalogSettings();
+    String[] tabNames = {"Inicio", "Apps", "Para vos", "Películas", "Series"};
+    for (int i = 0; i < tabNames.length; i++) {
+        final int index = i;
+        TextView tab = makeTab(tabNames[i], v -> {
+            if (index == 0) pageScroll.post(() -> pageScroll.smoothScrollTo(0, 0));
+            else if (index == 1) scrollToView(appsTitle);
+            else if (index == 2) scrollToView(forYouTitle);
+            else if (index == 3) scrollToView(moviesTitle);
+            else scrollToView(seriesTitle);
         });
-        LinearLayout.LayoutParams moreP=new LinearLayout.LayoutParams(-2,dp(46));
-        moreP.leftMargin=dp(9); actions.addView(more,moreP);
-        LinearLayout.LayoutParams actionsP=new LinearLayout.LayoutParams(-1,dp(50));
-        actionsP.topMargin=dp(10); content.addView(actions,actionsP);
-
-        addSectionTitle(content,"TUS APLICACIONES");
-        HorizontalScrollView appsScroll=railScroll();
-        appsScroll.setClipChildren(false); appsScroll.setClipToPadding(false);
-        appRail=new LinearLayout(this); appRail.setOrientation(LinearLayout.HORIZONTAL);
-        appRail.setClipChildren(false); appRail.setClipToPadding(false);
-        appsScroll.addView(appRail,new HorizontalScrollView.LayoutParams(-2,-1));
-        content.addView(appsScroll,new LinearLayout.LayoutParams(-1,dp(118)));
-
-        addSectionTitle(content,"PARA VOS");
-        HorizontalScrollView forYouScroll=railScroll();
-        forYouRail=new LinearLayout(this); forYouRail.setOrientation(LinearLayout.HORIZONTAL);
-        forYouScroll.addView(forYouRail,new HorizontalScrollView.LayoutParams(-2,-1));
-        content.addView(forYouScroll,new LinearLayout.LayoutParams(-1,dp(190)));
-
-        addSectionTitle(content,"PELÍCULAS POPULARES");
-        HorizontalScrollView moviesScroll=railScroll();
-        movieRail=new LinearLayout(this); movieRail.setOrientation(LinearLayout.HORIZONTAL);
-        moviesScroll.addView(movieRail,new HorizontalScrollView.LayoutParams(-2,-1));
-        content.addView(moviesScroll,new LinearLayout.LayoutParams(-1,dp(190)));
-
-        addSectionTitle(content,"SERIES POPULARES");
-        HorizontalScrollView seriesScroll=railScroll();
-        seriesRail=new LinearLayout(this); seriesRail.setOrientation(LinearLayout.HORIZONTAL);
-        seriesScroll.addView(seriesRail,new HorizontalScrollView.LayoutParams(-2,-1));
-        content.addView(seriesScroll,new LinearLayout.LayoutParams(-1,dp(190)));
-
-        statusText=text("Android 9 · optimizado para TV Box · PG",11,Color.rgb(160,173,195),false);
-        LinearLayout.LayoutParams statusP=new LinearLayout.LayoutParams(-1,-2);
-        statusP.topMargin=dp(14); content.addView(statusText,statusP);
-        setContentView(root);
+        LinearLayout.LayoutParams tabParams = new LinearLayout.LayoutParams(-2, dp(38));
+        tabParams.leftMargin = dp(i == 0 ? 18 : 4);
+        topBar.addView(tab, tabParams);
     }
 
-    private void scrollToView(View target) {
-        if (pageScroll == null || target == null) return;
-        int[] location = new int[2];
-        target.getLocationOnScreen(location);
-        int[] parent = new int[2];
-        pageScroll.getLocationOnScreen(parent);
-        pageScroll.smoothScrollBy(0, location[1] - parent[1] - dp(45));
-        target.requestFocus();
-    }
+    View spacer = new View(this);
+    topBar.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1));
+    Button systemSettings = button("⚙ Ajustes", false);
+    systemSettings.setOnClickListener(v -> openSystemSettings());
+    topBar.addView(systemSettings, new LinearLayout.LayoutParams(-2, dp(44)));
+    Button config = button("Personalizar", true);
+    config.setOnClickListener(v -> showPersonalizationMenu());
+    LinearLayout.LayoutParams configParams = new LinearLayout.LayoutParams(-2, dp(44));
+    configParams.leftMargin = dp(8);
+    topBar.addView(config, configParams);
+    LinearLayout.LayoutParams weatherParams = new LinearLayout.LayoutParams(-2, -2);
+    weatherParams.leftMargin = dp(14);
+    topBar.addView(buildWeatherWidget(), weatherParams);
+    column.addView(topBar, new LinearLayout.LayoutParams(-1, dp(56)));
+
+    // ---- Destacado (hero) ----
+    LinearLayout hero = new LinearLayout(this);
+    hero.setOrientation(LinearLayout.VERTICAL);
+    hero.setGravity(Gravity.BOTTOM);
+    TextView featuredLabel = text("DESTACADO PARA VOS", 12, blue, true);
+    featuredLabel.setTag("accent_label");
+    hero.addView(featuredLabel);
+    heroTitle = text("Tu pantalla, tu mundo", 30, white, true);
+    heroTitle.setMaxLines(1);
+    heroTitle.setEllipsize(TextUtils.TruncateAt.END);
+    LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(-1, -2);
+    titleParams.topMargin = dp(6);
+    hero.addView(heroTitle, titleParams);
+    heroDescription = text("Tus aplicaciones y recomendaciones en un solo lugar.", 15, muted, false);
+    heroDescription.setMaxLines(2);
+    heroDescription.setEllipsize(TextUtils.TruncateAt.END);
+    LinearLayout.LayoutParams descParams = new LinearLayout.LayoutParams(dp(560), -2);
+    descParams.topMargin = dp(6);
+    hero.addView(heroDescription, descParams);
+    LinearLayout actions = new LinearLayout(this);
+    actions.setGravity(Gravity.CENTER_VERTICAL);
+    Button change = button("↻ Cambiar destacado", true);
+    change.setOnClickListener(v -> changeFeatured());
+    actions.addView(change, new LinearLayout.LayoutParams(-2, dp(44)));
+    Button more = button("Más información", false);
+    more.setOnClickListener(v -> showHeroInfo());
+    LinearLayout.LayoutParams moreParams = new LinearLayout.LayoutParams(-2, dp(44));
+    moreParams.leftMargin = dp(10);
+    actions.addView(more, moreParams);
+    LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(-1, -2);
+    actionsParams.topMargin = dp(10);
+    hero.addView(actions, actionsParams);
+    column.addView(hero, new LinearLayout.LayoutParams(-1, dp(190)));
+
+    // ---- Filas desplazables ----
+    pageScroll = new ScrollView(this);
+    pageScroll.setVerticalScrollBarEnabled(false);
+    pageScroll.setClipToPadding(false);
+    LinearLayout rows = new LinearLayout(this);
+    rows.setOrientation(LinearLayout.VERTICAL);
+    rows.setClipChildren(false);
+    pageScroll.addView(rows, new ScrollView.LayoutParams(-1, -2));
+    column.addView(pageScroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+
+    appsTitle = addSectionHeader(rows, "TUS APLICACIONES");
+    appRail = addRail(rows, 124);
+    forYouTitle = addSectionHeader(rows, "PARA VOS");
+    forYouRail = addRail(rows, 168);
+    moviesTitle = addSectionHeader(rows, "PELÍCULAS POPULARES");
+    movieRail = addRail(rows, 220);
+    seriesTitle = addSectionHeader(rows, "SERIES POPULARES");
+    seriesRail = addRail(rows, 220);
+
+    statusText = text("Android 9 · optimizado para TV Box · PG", 11, Color.rgb(160, 173, 195), false);
+    LinearLayout.LayoutParams statusParams = new LinearLayout.LayoutParams(-1, -2);
+    statusParams.topMargin = dp(10);
+    rows.addView(statusText, statusParams);
+    setContentView(root);
+}
 
     private void addSectionTitle(LinearLayout content, String title) {
         TextView label = text(title, 13, muted, true);
@@ -352,14 +353,19 @@ public class MainActivity extends Activity {
     }
 
     private void selectApp(String pkg, String name) {
-        selectedPackage = pkg; selectedAppName = name;
-        heroTitle.setText(name);
-        heroDescription.setText("Seleccionaste " + name + ". Explorá las recomendaciones o presioná OK para abrir la aplicación.");
-        if (!hasCustomWallpaper()) {
-            if (!trending.isEmpty()) loadBackdropForApp(pkg);
-            else showFallback("Fondo destacado para " + name);
+    selectedPackage = pkg;
+    selectedAppName = name;
+    heroTitle.setText(name);
+    heroDescription.setText("Seleccionaste " + name + ". Explorá las recomendaciones o presioná OK para abrir la aplicación.");
+    if (hasCustomWallpaper()) return;
+    String path = "";
+    synchronized (trending) {
+        if (!trending.isEmpty()) {
+            path = jsonStr(trending.get(Math.abs(pkg.hashCode()) % trending.size()), "backdrop_path");
         }
     }
+    setBackdropDebounced(path);
+}
 
     private void loadBackdropForApp(String pkg) {
         if (hasCustomWallpaper()) return;
@@ -378,34 +384,56 @@ public class MainActivity extends Activity {
     }
 
     private void refreshCatalog() {
-        tmdbKey = prefs().getString("tmdb_key", "").trim();
-        if (tmdbKey.isEmpty()) {
-            statusText.setText("Catálogos online: configurá tu clave gratuita de TMDB.");
-            addCatalogPlaceholder(movieRail, "Configurá TMDB para ver películas");
-            addCatalogPlaceholder(forYouRail, "Configurá TMDB para recomendaciones");
-            addCatalogPlaceholder(seriesRail, "Configurá TMDB para ver series");
-            return;
-        }
-        statusText.setText("Cargando catálogos de películas y series…");
-        executor.execute(() -> {
-            try {
-                JSONObject trendJson = getJson("https://api.themoviedb.org/3/trending/all/day?api_key=" + enc(tmdbKey) + "&language=es-ES");
-                JSONArray t = trendJson.optJSONArray("results");
-                synchronized (trending) { trending.clear(); if (t != null) for (int i=0;i<t.length();i++) { JSONObject o=t.optJSONObject(i); if(o!=null && !o.optString("backdrop_path", "").isEmpty()) trending.add(o); } }
-                JSONObject movies = getJson("https://api.themoviedb.org/3/movie/popular?api_key=" + enc(tmdbKey) + "&language=es-ES&page=1");
-                JSONObject shows = getJson("https://api.themoviedb.org/3/tv/popular?api_key=" + enc(tmdbKey) + "&language=es-ES&page=1");
-                JSONArray ma = movies.optJSONArray("results"), sa = shows.optJSONArray("results");
-                handler.post(() -> {
-                    movieRail.removeAllViews(); seriesRail.removeAllViews(); forYouRail.removeAllViews();
-                    addMediaCards(forYouRail, t, false);
-                    addMediaCards(movieRail, ma, false); addMediaCards(seriesRail, sa, true);
-                    statusText.setText("Catálogos online · TMDB · los enlaces de reproducción dependen de cada aplicación.");
-                });
-            } catch (Exception e) {
-                handler.post(() -> { statusText.setText("No se pudo cargar TMDB. Revisá la clave y la conexión."); addCatalogPlaceholder(movieRail, "No se pudo cargar el catálogo"); addCatalogPlaceholder(seriesRail, "No se pudo cargar el catálogo"); });
-            }
-        });
+    tmdbKey = prefs().getString("tmdb_key", "").trim();
+    if (tmdbKey.isEmpty()) {
+        statusText.setText("Catálogos online: configurá tu clave gratuita de TMDB.");
+        forYouRail.removeAllViews();
+        movieRail.removeAllViews();
+        seriesRail.removeAllViews();
+        addCatalogPlaceholder(forYouRail, "Configurá TMDB para ver recomendaciones");
+        addCatalogPlaceholder(movieRail, "Configurá TMDB para ver películas");
+        addCatalogPlaceholder(seriesRail, "Configurá TMDB para ver series");
+        return;
     }
+    statusText.setText("Cargando catálogos de películas y series…");
+    executor.execute(() -> {
+        try {
+            JSONObject trendJson = getJson("https://api.themoviedb.org/3/trending/all/day?api_key=" + enc(tmdbKey) + "&language=es-ES");
+            JSONArray t = trendJson.optJSONArray("results");
+            synchronized (trending) {
+                trending.clear();
+                if (t != null) for (int i = 0; i < t.length(); i++) {
+                    JSONObject o = t.optJSONObject(i);
+                    if (o != null && !jsonStr(o, "backdrop_path").isEmpty()) trending.add(o);
+                }
+            }
+            JSONObject movies = getJson("https://api.themoviedb.org/3/movie/popular?api_key=" + enc(tmdbKey) + "&language=es-ES&page=1");
+            JSONObject shows = getJson("https://api.themoviedb.org/3/tv/popular?api_key=" + enc(tmdbKey) + "&language=es-ES&page=1");
+            JSONArray ma = movies.optJSONArray("results"), sa = shows.optJSONArray("results");
+            handler.post(() -> {
+                forYouRail.removeAllViews();
+                movieRail.removeAllViews();
+                seriesRail.removeAllViews();
+                fillForYou();
+                addMediaCards(movieRail, ma, false, 300);
+                addMediaCards(seriesRail, sa, true, 900);
+                statusText.setText("Catálogos online · TMDB · los enlaces de reproducción dependen de cada aplicación.");
+                if (selectedAppName.isEmpty()) {
+                    JSONObject first = null;
+                    synchronized (trending) { if (!trending.isEmpty()) first = trending.get(0); }
+                    if (first != null) setHeroDebounced(mediaTitle(first), jsonStr(first, "overview"), jsonStr(first, "backdrop_path"));
+                }
+            });
+        } catch (Exception e) {
+            handler.post(() -> {
+                statusText.setText("No se pudo cargar TMDB. Revisá la clave y la conexión.");
+                addCatalogPlaceholder(forYouRail, "No se pudo cargar el catálogo");
+                addCatalogPlaceholder(movieRail, "No se pudo cargar el catálogo");
+                addCatalogPlaceholder(seriesRail, "No se pudo cargar el catálogo");
+            });
+        }
+    });
+}
 
     private String enc(String value) throws Exception { return URLEncoder.encode(value, "UTF-8"); }
 
@@ -417,31 +445,53 @@ public class MainActivity extends Activity {
     }
 
     private void addMediaCards(LinearLayout rail, JSONArray array, boolean tv) {
-        if (array == null || array.length() == 0) { addCatalogPlaceholder(rail, "No hay títulos disponibles"); return; }
-        int limit = Math.min(array.length(), 12);
-        for (int i=0;i<limit;i++) {
-            JSONObject item = array.optJSONObject(i); if (item == null) continue;
-            String title = item.optString("title", item.optString("name", "Sin título"));
-            String overview = item.optString("overview", "Sin descripción disponible.");
-            String poster = item.optString("poster_path", "");
-            LinearLayout card = new LinearLayout(this); card.setOrientation(LinearLayout.VERTICAL); card.setFocusable(true); card.setClickable(true); card.setPadding(dp(3),dp(3),dp(3),dp(3));
-            GradientDrawable normal = glassDrawable(0x88202d43, 0x66ffffff, 10);
-            GradientDrawable focusedBackground = glassDrawable(blendColor(blue, 0xff263f68, 0.35f), 0xffe4f1ff, 10); focusedBackground.setStroke(dp(2), blue);
-            StateListDrawable state = new StateListDrawable(); state.addState(new int[]{android.R.attr.state_focused},focusedBackground); state.addState(new int[]{},normal); card.setBackground(state);
-            card.setClipToOutline(true);
-            ImageView image = new ImageView(this); image.setScaleType(ImageView.ScaleType.CENTER_CROP); image.setBackgroundColor(0x33202a3d);
-            card.addView(image,new LinearLayout.LayoutParams(dp(112),dp(125)));
-            TextView label = text(title,10,white,true); label.setMaxLines(2); label.setEllipsize(TextUtils.TruncateAt.END); label.setGravity(Gravity.CENTER_VERTICAL);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(112),dp(35)); lp.topMargin=dp(3); card.addView(label,lp);
-            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(124),dp(171)); cp.rightMargin=dp(9); rail.addView(card,cp);
-            if (!poster.isEmpty()) {
-                String imageUrl="https://image.tmdb.org/t/p/w342"+poster;
-                executor.execute(() -> { try { Bitmap bmp=getBitmap(imageUrl); handler.post(() -> { if(bmp!=null) image.setImageBitmap(bmp); }); } catch(Exception ignored){} });
-            }
-            card.setOnFocusChangeListener((v, focused) -> { v.setScaleX(focused?1.04f:1f); v.setScaleY(focused?1.04f:1f); if(focused){heroTitle.setText(title); heroDescription.setText(overview.isEmpty()?"Explorá este título en tus aplicaciones instaladas.":overview); if(!hasCustomWallpaper() && !poster.isEmpty()) { final int token=++backdropToken; executor.execute(() -> { try { Bitmap bmp=getBitmap("https://image.tmdb.org/t/p/w1280"+item.optString("backdrop_path", "")); handler.post(() -> { if(bmp!=null && token==backdropToken) applyHeroBitmap(bmp); }); } catch(Exception ignored){} }); } } });
-            card.setOnClickListener(v -> showMediaDetails(title, overview, tv));
-        }
+    addMediaCards(rail, array, tv, 0);
+}
+
+    private void addMediaCards(LinearLayout rail, JSONArray array, boolean tv, long delayMs) {
+    if (array == null || array.length() == 0) { addCatalogPlaceholder(rail, "No hay títulos disponibles"); return; }
+    int limit = Math.min(array.length(), 12);
+    int shown = 0;
+    for (int i = 0; i < limit; i++) {
+        final JSONObject item = array.optJSONObject(i);
+        if (item == null) continue;
+        final String poster = jsonStr(item, "poster_path");
+        if (poster.isEmpty()) continue;
+        final String title = mediaTitle(item);
+        final String overview = jsonStr(item, "overview");
+        final String backdrop = jsonStr(item, "backdrop_path");
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setFocusable(true);
+        card.setClickable(true);
+        card.setPadding(dp(3), dp(3), dp(3), dp(3));
+        card.setBackground(mediaCardBackground());
+        card.setClipToOutline(true);
+        ImageView image = new ImageView(this);
+        image.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        image.setBackgroundColor(0x33202a3d);
+        card.addView(image, new LinearLayout.LayoutParams(dp(104), dp(156)));
+        TextView label = text(title, 10, white, true);
+        label.setMaxLines(2);
+        label.setEllipsize(TextUtils.TruncateAt.END);
+        label.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(dp(104), dp(32));
+        labelParams.topMargin = dp(3);
+        card.addView(label, labelParams);
+        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(dp(110), dp(200));
+        cardParams.rightMargin = dp(9);
+        rail.addView(card, cardParams);
+        loadImageInto(image, "https://image.tmdb.org/t/p/w342" + poster, delayMs + shown * 60L);
+        shown++;
+        card.setOnFocusChangeListener((v, focused) -> {
+            animateCardFocus(v, focused);
+            if (focused) setHeroDebounced(title,
+                    overview.isEmpty() ? "Explorá este título en tus aplicaciones instaladas." : overview, backdrop);
+        });
+        card.setOnClickListener(v -> showMediaDetails(title, overview, tv));
     }
+    if (shown == 0) addCatalogPlaceholder(rail, "No hay títulos disponibles");
+}
 
     private void showMediaDetails(String title, String overview, boolean tv) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this).setTitle(title).setMessage((tv?"Serie":"Película") + "\n\n" + (overview.isEmpty()?"Sin descripción disponible.":overview));
@@ -571,43 +621,25 @@ public class MainActivity extends Activity {
     }
 
     private void showPersonalizationMenu() {
-        String[] options = new String[] {
-            "Elegir imagen de la TV Box",
-            "Usar fondos cinematográficos automáticos",
-            "Configurar catálogo de películas y series (TMDB)",
-            "Establecer como launcher predeterminado",
-            "Región del reloj y clima"
-        };
-        new AlertDialog.Builder(this)
-            .setTitle("Personalizar TV Launcher PG")
-            .setItems(options, (dialog, which) -> {
-                if (which == 0) chooseWallpaper();
-                else if (which == 1) useAutomaticWallpapers();
-                else if (which == 2) showCatalogSettings();
-                else if (which == 3) openHomeSettings();
-                else showWeatherCityDialog();
-            })
-            .setNegativeButton("Cerrar", null)
-            .show();
-    }
-
-    private void showWeatherCityDialog() {
-        EditText cityInput = new EditText(this);
-        cityInput.setSingleLine(true);
-        cityInput.setText(weatherCity);
-        cityInput.setHint("Ej.: Paraná");
-        new AlertDialog.Builder(this).setTitle("Región del reloj y clima")
-            .setMessage("Elegí la ciudad que querés mostrar en la pantalla principal.")
-            .setView(cityInput)
-            .setPositiveButton("Guardar", (d,w) -> {
-                String value=cityInput.getText().toString().trim();
-                if(!value.isEmpty()) {
-                    weatherCity=value;
-                    prefs().edit().putString("weather_city",value).apply();
-                    if(weatherText!=null) weatherText.setText("Clima · "+weatherCity);
-                }
-            }).setNegativeButton("Cancelar",null).show();
-    }
+    String[] options = new String[] {
+        "Elegir imagen de la TV Box",
+        "Usar fondos cinematográficos automáticos",
+        "Configurar catálogo de películas y series (TMDB)",
+        "Establecer como launcher predeterminado",
+        "Región del clima y reloj"
+    };
+    new AlertDialog.Builder(this)
+        .setTitle("Personalizar TV Launcher PG")
+        .setItems(options, (dialog, which) -> {
+            if (which == 0) chooseWallpaper();
+            else if (which == 1) useAutomaticWallpapers();
+            else if (which == 2) showCatalogSettings();
+            else if (which == 3) openHomeSettings();
+            else showWeatherCityDialog();
+        })
+        .setNegativeButton("Cerrar", null)
+        .show();
+}
 
     private Drawable buttonGlassBackground(boolean primary) {
         GradientDrawable normal = glassDrawable(primary ? blendColor(blue, 0xff152236, 0.58f) : 0x66232f45, 0x66ffffff, 13);
@@ -660,7 +692,7 @@ public class MainActivity extends Activity {
             logoBg.setCornerRadius(dp(13)); logoBg.setStroke(dp(2), blue); view.setBackground(logoBg);
         } else if ("primary_button".equals(tag) && view instanceof Button) ((Button) view).setBackground(buttonGlassBackground(true));
         else if ("secondary_button".equals(tag) && view instanceof Button) ((Button) view).setBackground(buttonGlassBackground(false));
-        else if ("accent_tab".equals(tag) && view instanceof TextView) ((TextView) view).setBackground(buttonGlassBackground(false));
+        else if ("accent_tab".equals(tag) && view instanceof TextView) view.setBackground(tabBackground());
         else if ("app_card".equals(tag)) {
             GradientDrawable normalCard = glassDrawable(0x55202d43, 0x66ffffff, 15);
             GradientDrawable focusedCard = glassDrawable(blendColor(blue, 0xff20334c, 0.48f), 0xffd9ebff, 15);
@@ -790,4 +822,293 @@ public class MainActivity extends Activity {
 
     private int dp(float value) { return (int)(value*getResources().getDisplayMetrics().density+0.5f); }
     @Override protected void onDestroy() { handler.removeCallbacksAndMessages(null); executor.shutdownNow(); super.onDestroy(); }
+
+    private TextView addSectionHeader(LinearLayout parent, String title) {
+    TextView label = text(title, 13, muted, true);
+    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+    lp.topMargin = dp(14);
+    lp.leftMargin = dp(6);
+    parent.addView(label, lp);
+    return label;
+}
+
+    private LinearLayout addRail(LinearLayout parent, int heightDp) {
+    HorizontalScrollView scroll = railScroll();
+    scroll.setClipChildren(false);
+    scroll.setClipToPadding(false);
+    LinearLayout rail = new LinearLayout(this);
+    rail.setOrientation(LinearLayout.HORIZONTAL);
+    rail.setClipChildren(false);
+    rail.setClipToPadding(false);
+    rail.setPadding(dp(6), dp(8), dp(40), dp(8));
+    scroll.addView(rail, new HorizontalScrollView.LayoutParams(-2, -1));
+    parent.addView(scroll, new LinearLayout.LayoutParams(-1, dp(heightDp)));
+    return rail;
+}
+
+    private TextView makeTab(String label, View.OnClickListener click) {
+    final TextView t = text(label, 14, white, true);
+    t.setGravity(Gravity.CENTER);
+    t.setPadding(dp(16), 0, dp(16), 0);
+    t.setFocusable(true);
+    t.setClickable(true);
+    t.setTag("accent_tab");
+    t.setBackground(tabBackground());
+    t.setOnClickListener(click);
+    t.setOnFocusChangeListener((v, focused) -> t.setTextColor(focused ? blue : white));
+    return t;
+}
+
+    private Drawable tabBackground() {
+    GradientDrawable focused = glassDrawable(blendColor(blue, 0xff17283e, 0.28f), 0xffdceaff, 18);
+    focused.setStroke(dp(2), blue);
+    StateListDrawable states = new StateListDrawable();
+    states.addState(new int[]{android.R.attr.state_focused}, focused);
+    states.addState(new int[]{}, new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+    return states;
+}
+
+    private Drawable mediaCardBackground() {
+    GradientDrawable normal = glassDrawable(0x88202d43, 0x66ffffff, 10);
+    GradientDrawable focused = glassDrawable(blendColor(blue, 0xff263f68, 0.35f), 0xffe4f1ff, 10);
+    focused.setStroke(dp(2), blue);
+    StateListDrawable states = new StateListDrawable();
+    states.addState(new int[]{android.R.attr.state_focused}, focused);
+    states.addState(new int[]{}, normal);
+    return states;
+}
+
+    private void animateCardFocus(View v, boolean focused) {
+    v.animate().cancel();
+    v.animate().scaleX(focused ? 1.07f : 1f).scaleY(focused ? 1.07f : 1f)
+            .setDuration(focused ? 130 : 100).start();
+}
+
+    private void scrollToView(final View target) {
+    if (pageScroll == null || target == null) return;
+    pageScroll.post(() -> pageScroll.smoothScrollTo(0, Math.max(0, target.getTop() - dp(8))));
+}
+
+    private void showHeroInfo() {
+    new AlertDialog.Builder(this)
+        .setTitle(heroTitle.getText())
+        .setMessage(heroDescription.getText())
+        .setNegativeButton("Cerrar", null)
+        .show();
+}
+
+    private void setHeroDebounced(String title, String description, String backdropPath) {
+    heroTitle.setText(title);
+    heroDescription.setText(description);
+    setBackdropDebounced(backdropPath);
+}
+
+    private void setBackdropDebounced(final String backdropPath) {
+    if (hasCustomWallpaper() || backdropPath == null || backdropPath.isEmpty()) return;
+    if (pendingHero != null) handler.removeCallbacks(pendingHero);
+    final int token = ++backdropToken;
+    pendingHero = () -> executor.execute(() -> {
+        try {
+            final Bitmap bmp = getBitmapCached("https://image.tmdb.org/t/p/w1280" + backdropPath);
+            handler.post(() -> { if (bmp != null && token == backdropToken) applyHeroBitmap(bmp); });
+        } catch (Exception ignored) { }
+    });
+    handler.postDelayed(pendingHero, 220);
+}
+
+    private Bitmap getBitmapCached(String url) throws Exception {
+    Bitmap hit = imageCache.get(url);
+    if (hit != null && !hit.isRecycled()) return hit;
+    Bitmap bmp = getBitmap(url);
+    if (bmp != null) imageCache.put(url, bmp);
+    return bmp;
+}
+
+    private void loadImageInto(final ImageView target, final String url, long delayMs) {
+    target.setTag(url);
+    handler.postDelayed(() -> executor.execute(() -> {
+        try {
+            final Bitmap bmp = getBitmapCached(url);
+            handler.post(() -> { if (bmp != null && url.equals(target.getTag())) target.setImageBitmap(bmp); });
+        } catch (Exception ignored) { }
+    }), delayMs);
+}
+
+    private String jsonStr(JSONObject o, String key) {
+    return (o == null || o.isNull(key)) ? "" : o.optString(key, "");
+}
+
+    private String mediaTitle(JSONObject item) {
+    String t = jsonStr(item, "title");
+    if (t.isEmpty()) t = jsonStr(item, "name");
+    return t.isEmpty() ? "Sin título" : t;
+}
+
+    private void fillForYou() {
+    forYouRail.removeAllViews();
+    List<JSONObject> copy;
+    synchronized (trending) { copy = new ArrayList<>(trending); }
+    if (copy.isEmpty()) { addCatalogPlaceholder(forYouRail, "Sin recomendaciones por ahora"); return; }
+    addLandscapeCards(forYouRail, copy);
+}
+
+    private void addLandscapeCards(LinearLayout rail, List<JSONObject> items) {
+    int shown = 0;
+    for (int i = 0; i < items.size() && shown < 10; i++) {
+        final JSONObject item = items.get(i);
+        final String backdrop = jsonStr(item, "backdrop_path");
+        if (backdrop.isEmpty()) continue;
+        final String title = mediaTitle(item);
+        final String overview = jsonStr(item, "overview");
+        final boolean tv = "tv".equals(jsonStr(item, "media_type"));
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setFocusable(true);
+        card.setClickable(true);
+        card.setPadding(dp(3), dp(3), dp(3), dp(3));
+        card.setBackground(mediaCardBackground());
+        card.setClipToOutline(true);
+        ImageView image = new ImageView(this);
+        image.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        image.setBackgroundColor(0x33202a3d);
+        card.addView(image, new LinearLayout.LayoutParams(dp(200), dp(112)));
+        TextView label = text(title, 11, white, true);
+        label.setMaxLines(1);
+        label.setEllipsize(TextUtils.TruncateAt.END);
+        label.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams labelParams = new LinearLayout.LayoutParams(dp(200), dp(24));
+        labelParams.topMargin = dp(3);
+        card.addView(label, labelParams);
+        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(dp(206), dp(148));
+        cardParams.rightMargin = dp(10);
+        rail.addView(card, cardParams);
+        loadImageInto(image, "https://image.tmdb.org/t/p/w300" + backdrop, shown * 60L);
+        shown++;
+        card.setOnFocusChangeListener((v, focused) -> {
+            animateCardFocus(v, focused);
+            if (focused) setHeroDebounced(title,
+                    overview.isEmpty() ? "Una recomendación para descubrir." : overview, backdrop);
+        });
+        card.setOnClickListener(v -> showMediaDetails(title, overview, tv));
+    }
+    if (shown == 0) addCatalogPlaceholder(rail, "Sin recomendaciones por ahora");
+}
+
+    private View buildWeatherWidget() {
+    LinearLayout widget = new LinearLayout(this);
+    widget.setOrientation(LinearLayout.HORIZONTAL);
+    widget.setGravity(Gravity.CENTER_VERTICAL);
+    widget.setPadding(dp(14), dp(5), dp(16), dp(5));
+    widget.setFocusable(true);
+    widget.setClickable(true);
+    GradientDrawable normal = glassDrawable(0x66202d43, 0x55ffffff, 16);
+    GradientDrawable focused = glassDrawable(blendColor(blue, 0xff17283e, 0.28f), 0xffdceaff, 16);
+    focused.setStroke(dp(2), blue);
+    StateListDrawable states = new StateListDrawable();
+    states.addState(new int[]{android.R.attr.state_focused}, focused);
+    states.addState(new int[]{}, normal);
+    widget.setBackground(states);
+    widget.setOnClickListener(v -> showWeatherCityDialog());
+
+    TextClock clock = new TextClock(this);
+    clock.setFormat24Hour("HH:mm");
+    clock.setFormat12Hour("HH:mm");
+    clock.setTextSize(24);
+    clock.setTextColor(white);
+    clock.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
+    widget.addView(clock, new LinearLayout.LayoutParams(-2, -2));
+
+    LinearLayout info = new LinearLayout(this);
+    info.setOrientation(LinearLayout.VERTICAL);
+    weatherText = text("Cargando clima…", 13, white, true);
+    regionText = text(weatherCity, 11, muted, false);
+    info.addView(weatherText);
+    info.addView(regionText);
+    LinearLayout.LayoutParams infoParams = new LinearLayout.LayoutParams(-2, -2);
+    infoParams.leftMargin = dp(12);
+    widget.addView(info, infoParams);
+    return widget;
+}
+
+    private void loadWeather() {
+    final String city = weatherCity;
+    executor.execute(() -> {
+        try {
+            if (Double.isNaN(weatherLat) || Double.isNaN(weatherLon)) {
+                JSONObject geo = getJson("https://geocoding-api.open-meteo.com/v1/search?name=" + enc(city) + "&count=1&language=es&format=json");
+                JSONArray results = geo.optJSONArray("results");
+                if (results == null || results.length() == 0) {
+                    handler.post(() -> applyWeather(null, null, "Ciudad no encontrada"));
+                    return;
+                }
+                JSONObject first = results.getJSONObject(0);
+                weatherLat = first.getDouble("latitude");
+                weatherLon = first.getDouble("longitude");
+                prefs().edit().putString("weather_lat", String.valueOf(weatherLat))
+                        .putString("weather_lon", String.valueOf(weatherLon)).apply();
+            }
+            JSONObject w = getJson("https://api.open-meteo.com/v1/forecast?latitude=" + weatherLat
+                    + "&longitude=" + weatherLon + "&current=temperature_2m,weather_code&timezone=auto");
+            JSONObject current = w.getJSONObject("current");
+            final int temp = (int) Math.round(current.getDouble("temperature_2m"));
+            final int code = current.optInt("weather_code", -1);
+            handler.post(() -> applyWeather(temp + "°C", weatherDescription(code), city));
+        } catch (Exception e) {
+            handler.post(() -> applyWeather(null, null, null));
+        }
+    });
+}
+
+    private void applyWeather(String temp, String description, String region) {
+    if (weatherText == null || regionText == null) return;
+    if (temp == null) {
+        CharSequence current = weatherText.getText();
+        if (current == null || current.toString().startsWith("Cargando")) weatherText.setText("Sin datos del clima");
+        if (region != null) regionText.setText(region);
+        return;
+    }
+    weatherText.setText(temp + " · " + description);
+    regionText.setText(region);
+}
+
+    private String weatherDescription(int code) {
+    if (code == 0) return "Despejado";
+    if (code == 1 || code == 2) return "Poco nublado";
+    if (code == 3) return "Nublado";
+    if (code == 45 || code == 48) return "Niebla";
+    if (code >= 51 && code <= 57) return "Llovizna";
+    if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "Lluvia";
+    if ((code >= 71 && code <= 77) || code == 85 || code == 86) return "Nieve";
+    if (code >= 95) return "Tormenta";
+    return "Variable";
+}
+
+    private void showWeatherCityDialog() {
+    final EditText input = new EditText(this);
+    input.setSingleLine(true);
+    input.setHint("Ciudad (ej: Buenos Aires)");
+    input.setText(weatherCity);
+    input.setInputType(InputType.TYPE_CLASS_TEXT);
+    input.setTextColor(white);
+    input.setHintTextColor(muted);
+    LinearLayout box = new LinearLayout(this);
+    box.setPadding(dp(20), dp(8), dp(20), 0);
+    box.addView(input, new LinearLayout.LayoutParams(-1, -2));
+    new AlertDialog.Builder(this)
+        .setTitle("Región del clima")
+        .setView(box)
+        .setPositiveButton("Guardar", (d, w) -> {
+            String city = input.getText().toString().trim();
+            if (city.isEmpty()) return;
+            weatherCity = city;
+            weatherLat = Double.NaN;
+            weatherLon = Double.NaN;
+            prefs().edit().putString("weather_city", city).remove("weather_lat").remove("weather_lon").apply();
+            regionText.setText(city);
+            weatherText.setText("Cargando clima…");
+            loadWeather();
+        })
+        .setNegativeButton("Cancelar", null)
+        .show();
+}
 }
