@@ -81,6 +81,7 @@ public class MainActivity extends Activity {
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         tmdbKey = prefs().getString("tmdb_key", "").trim();
         customWallpaperUri = prefs().getString("wallpaper_uri", "");
+        AudioEqualizerPanel.restore(this);
         buildUi();
         loadApps();
         refreshCatalog();
@@ -112,7 +113,12 @@ public class MainActivity extends Activity {
         TextView brand = text("TV LAUNCHER PG", 18, white, true);
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-2, -2); bp.leftMargin = dp(13); header.addView(brand, bp);
         View spacer = new View(this); header.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1));
-        Button systemSettings = button("⚙ Ajustes del TV", false); systemSettings.setOnClickListener(v -> openSystemSettings());
+        GlassClockView glassClock = new GlassClockView(this);
+        glassClock.setContentDescription("Hora actual");
+        LinearLayout.LayoutParams clockParams = new LinearLayout.LayoutParams(dp(112), dp(48));
+        clockParams.rightMargin = dp(5);
+        header.addView(glassClock, clockParams);
+        Button systemSettings = button("⚙ Ajustes del TV", false); systemSettings.setOnClickListener(v -> showLauncherSettingsMenu());
         header.addView(systemSettings, new LinearLayout.LayoutParams(-2, dp(46)));
         Button config = button("Personalizar", true); config.setOnClickListener(v -> showPersonalizationMenu());
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-2, dp(46)); cp.leftMargin = dp(9); header.addView(config, cp);
@@ -193,10 +199,19 @@ public class MainActivity extends Activity {
             tile.setPadding(dp(2), dp(3), dp(2), dp(3));
             tile.setBackgroundColor(Color.TRANSPARENT);
 
+            FrameLayout cardShell = new FrameLayout(this);
+            cardShell.setClipChildren(false);
+            cardShell.setClipToPadding(false);
+            LiquidGlassGlowView glow = new LiquidGlassGlowView(this);
+            glow.setAlpha(0f);
+            FrameLayout.LayoutParams glowParams = new FrameLayout.LayoutParams(-1, -1);
+            glowParams.setMargins(dp(-5), dp(-5), dp(-5), dp(-5));
+            cardShell.addView(glow, glowParams);
+
             FrameLayout card = new FrameLayout(this);
             GradientDrawable normalCard = glassDrawable(0x55202d43, 0x66ffffff, 15);
-            GradientDrawable focusedCard = glassDrawable(blendColor(blue, 0xff20334c, 0.48f), 0xffd9ebff, 15);
-            focusedCard.setStroke(dp(2), blue);
+            GradientDrawable focusedCard = glassDrawable(blendColor(Color.WHITE, 0xff20334c, 0.78f), 0xfff7fbff, 15);
+            focusedCard.setStroke(dp(1), 0xfff7fbff);
             StateListDrawable cardStates = new StateListDrawable();
             cardStates.addState(new int[]{android.R.attr.state_focused}, focusedCard);
             cardStates.addState(new int[]{}, normalCard);
@@ -218,7 +233,8 @@ public class MainActivity extends Activity {
             try { icon.setImageDrawable(info.loadIcon(pm)); } catch (Exception ignored) { }
             FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER);
             card.addView(icon, iconParams);
-            tile.addView(card, new LinearLayout.LayoutParams(dp(128), dp(66)));
+            cardShell.addView(card, new FrameLayout.LayoutParams(-1, -1));
+            tile.addView(cardShell, new LinearLayout.LayoutParams(dp(128), dp(66)));
 
             TextView label = text(name, 11, white, true);
             label.setGravity(Gravity.CENTER);
@@ -243,7 +259,12 @@ public class MainActivity extends Activity {
                         .setInterpolator(new android.view.animation.DecelerateInterpolator(1.5f))
                         .start();
                 v.setElevation(focused ? dp(20) : 0);
-                label.setTextColor(focused ? blue : white);
+                glow.animate().cancel();
+                glow.animate().alpha(focused ? 1f : 0f).setDuration(focused ? 240 : 170).start();
+                card.animate().cancel();
+                card.animate().scaleX(focused ? 1.015f : 1f).scaleY(focused ? 1.015f : 1f)
+                        .setDuration(focused ? 230 : 170).start();
+                label.setTextColor(focused ? 0xfff4f8ff : white);
                 if (focused) selectApp(pkg, name);
             });
             tile.setOnClickListener(v -> launchApp(pkg, cls));
@@ -431,6 +452,23 @@ public class MainActivity extends Activity {
         if (statusText != null) statusText.setText(value);
     }
 
+    private void showLauncherSettingsMenu() {
+        String[] options = new String[] {
+            "Ecualizador de audio",
+            "Ajustes del TV Box",
+            "Personalizar TV Launcher PG"
+        };
+        new AlertDialog.Builder(this)
+            .setTitle("Ajustes · TV Launcher PG")
+            .setItems(options, (dialog, which) -> {
+                if (which == 0) AudioEqualizerPanel.show(this);
+                else if (which == 1) openSystemSettings();
+                else showPersonalizationMenu();
+            })
+            .setNegativeButton("Cerrar", null)
+            .show();
+    }
+
     private void showPersonalizationMenu() {
         String[] options = new String[] {
             "Elegir imagen de la TV Box",
@@ -501,8 +539,8 @@ public class MainActivity extends Activity {
         else if ("secondary_button".equals(tag) && view instanceof Button) ((Button) view).setBackground(buttonGlassBackground(false));
         else if ("app_card".equals(tag)) {
             GradientDrawable normalCard = glassDrawable(0x55202d43, 0x66ffffff, 15);
-            GradientDrawable focusedCard = glassDrawable(blendColor(blue, 0xff20334c, 0.48f), 0xffd9ebff, 15);
-            focusedCard.setStroke(dp(2), blue);
+            GradientDrawable focusedCard = glassDrawable(blendColor(Color.WHITE, 0xff20334c, 0.78f), 0xfff7fbff, 15);
+            focusedCard.setStroke(dp(1), 0xfff7fbff);
             StateListDrawable states = new StateListDrawable(); states.addState(new int[]{android.R.attr.state_focused}, focusedCard); states.addState(new int[]{}, normalCard);
             view.setBackground(states);
         }
@@ -622,8 +660,27 @@ public class MainActivity extends Activity {
     }
 
     @Override public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if(keyCode==KeyEvent.KEYCODE_MENU || keyCode==KeyEvent.KEYCODE_SETTINGS) { showCatalogSettings(); return true; }
-        return super.onKeyDown(keyCode,event);
+        if (keyCode == KeyEvent.KEYCODE_HOME && event.getRepeatCount() > 0) {
+            RecentAppsDialog.show(this);
+            return true;
+        }
+        if (keyCode == KeyEvent.KEYCODE_APP_SWITCH) {
+            RecentAppsDialog.show(this);
+            return true;
+        }
+        if (keyCode == KeyEvent.KEYCODE_MENU || keyCode == KeyEvent.KEYCODE_SETTINGS) {
+            showLauncherSettingsMenu();
+            return true;
+        }
+        return super.onKeyDown(keyCode, event);
+    }
+
+    @Override public boolean onKeyLongPress(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_HOME || keyCode == KeyEvent.KEYCODE_APP_SWITCH) {
+            RecentAppsDialog.show(this);
+            return true;
+        }
+        return super.onKeyLongPress(keyCode, event);
     }
 
     private int dp(float value) { return (int)(value*getResources().getDisplayMetrics().density+0.5f); }
