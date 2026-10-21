@@ -10,8 +10,8 @@ android {
         applicationId 'com.tvlaunch.pg'
         minSdk 28
         targetSdk 28
-        versionCode 8
-        versionName '2.5-instant-boot'
+        versionCode 9
+        versionName '2.6-liquid-glass-multitask-eq'
         ndk { abiFilters 'armeabi-v7a' }
     }
 
