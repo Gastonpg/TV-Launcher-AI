@@ -112,6 +112,11 @@ public class MainActivity extends Activity {
         TextView brand = text("TV LAUNCHER PG", 18, white, true);
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-2, -2); bp.leftMargin = dp(13); header.addView(brand, bp);
         View spacer = new View(this); header.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1));
+        GlassClockView glassClock = new GlassClockView(this);
+        glassClock.setContentDescription("Hora actual");
+        LinearLayout.LayoutParams clockParams = new LinearLayout.LayoutParams(dp(94), dp(46));
+        clockParams.rightMargin = dp(8);
+        header.addView(glassClock, clockParams);
         Button systemSettings = button("⚙ Ajustes del TV", false); systemSettings.setOnClickListener(v -> openSystemSettings());
         header.addView(systemSettings, new LinearLayout.LayoutParams(-2, dp(46)));
         Button config = button("Personalizar", true); config.setOnClickListener(v -> showPersonalizationMenu());
@@ -194,9 +199,9 @@ public class MainActivity extends Activity {
             tile.setBackgroundColor(Color.TRANSPARENT);
 
             FrameLayout card = new FrameLayout(this);
-            GradientDrawable normalCard = glassDrawable(0x55202d43, 0x66ffffff, 15);
-            GradientDrawable focusedCard = glassDrawable(blendColor(blue, 0xff20334c, 0.48f), 0xffd9ebff, 15);
-            focusedCard.setStroke(dp(2), blue);
+            GradientDrawable normalCard = glassDrawable(0x77202b3d, 0x44ffffff, 15);
+            GradientDrawable focusedCard = glassDrawable(0x99202b3d, 0xfff5f8ff, 15);
+            focusedCard.setStroke(dp(2), 0xfff5f8ff);
             StateListDrawable cardStates = new StateListDrawable();
             cardStates.addState(new int[]{android.R.attr.state_focused}, focusedCard);
             cardStates.addState(new int[]{}, normalCard);
@@ -622,8 +627,15 @@ public class MainActivity extends Activity {
     }
 
     @Override public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_HOME && event.getRepeatCount() > 0) { RecentAppsDialog.show(this); return true; }
+        if (keyCode == KeyEvent.KEYCODE_APP_SWITCH) { RecentAppsDialog.show(this); return true; }
         if(keyCode==KeyEvent.KEYCODE_MENU || keyCode==KeyEvent.KEYCODE_SETTINGS) { showCatalogSettings(); return true; }
         return super.onKeyDown(keyCode,event);
+    }
+
+    @Override public boolean onKeyLongPress(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_HOME || keyCode == KeyEvent.KEYCODE_APP_SWITCH) { RecentAppsDialog.show(this); return true; }
+        return super.onKeyLongPress(keyCode, event);
     }
 
     private int dp(float value) { return (int)(value*getResources().getDisplayMetrics().density+0.5f); }
