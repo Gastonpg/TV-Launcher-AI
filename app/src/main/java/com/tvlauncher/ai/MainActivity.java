@@ -519,12 +519,11 @@ public class MainActivity extends Activity {
 
     // Translucent gradient + fine light border: lightweight Liquid Glass styling for Android 9.
     // It intentionally avoids real-time backdrop blur to keep older TV Boxes responsive.
+    // Clean cinematic card: dark fill with a restrained pearl edge, no milky glass overlay.
+    // Kept lightweight for the Android 9 TV Box.
     private GradientDrawable glassDrawable(int tint, int stroke, float radiusDp) {
-        int top = blendWithAlpha(Color.WHITE, tint, 0.16f, 0x35);
-        int middle = tint;
-        int bottom = blendWithAlpha(Color.BLACK, tint, 0.08f, 0x58);
-        GradientDrawable drawable = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{top, middle, bottom});
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setColor(tint);
         drawable.setCornerRadius(dp(radiusDp));
         drawable.setStroke(dp(1), stroke);
         return drawable;
