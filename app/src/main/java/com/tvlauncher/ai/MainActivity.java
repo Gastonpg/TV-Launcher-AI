@@ -1,7 +1,6 @@
 package com.tvlauncher.ai;
 
 import android.app.Activity;
-import android.app.ActivityManager;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -56,8 +55,7 @@ public class MainActivity extends Activity {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService executor = Executors.newFixedThreadPool(3);
     private ImageView heroImage;
-    private TextView heroTitle, heroDescription, statusText, clockText;
-    private final Runnable clockTicker = new Runnable() { @Override public void run() { if (clockText != null) { java.text.SimpleDateFormat fmt = new java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()); clockText.setText(fmt.format(new java.util.Date())); handler.postDelayed(this, 1000L); } } };
+    private TextView heroTitle, heroDescription, statusText;
     private LinearLayout appRail, movieRail, seriesRail;
     private String tmdbKey = "";
     private String selectedPackage = "";
@@ -114,8 +112,6 @@ public class MainActivity extends Activity {
         TextView brand = text("TV LAUNCHER PG", 18, white, true);
         LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-2, -2); bp.leftMargin = dp(13); header.addView(brand, bp);
         View spacer = new View(this); header.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1));
-        clockText = text("00:00", 25, white, false); clockText.setGravity(Gravity.CENTER_VERTICAL); clockText.setShadowLayer(dp(7), 0, 0, 0x99ffffff); clockText.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
-        LinearLayout.LayoutParams clockParams = new LinearLayout.LayoutParams(-2, dp(46)); clockParams.rightMargin = dp(20); header.addView(clockText, clockParams); clockTicker.run();
         Button systemSettings = button("⚙ Ajustes del TV", false); systemSettings.setOnClickListener(v -> openSystemSettings());
         header.addView(systemSettings, new LinearLayout.LayoutParams(-2, dp(46)));
         Button config = button("Personalizar", true); config.setOnClickListener(v -> showPersonalizationMenu());
@@ -625,97 +621,11 @@ public class MainActivity extends Activity {
         catch(Exception e) { try { startActivity(new Intent(Settings.ACTION_WIRELESS_SETTINGS)); } catch(Exception ignored) { Toast.makeText(this,"Este firmware no permite abrir los ajustes.",Toast.LENGTH_LONG).show(); } }
     }
 
-    @Override public boolean onKeyLongPress(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_HOME || keyCode == KeyEvent.KEYCODE_APP_SWITCH) {
-            showMultitasking();
-            return true;
-        }
-        return super.onKeyLongPress(keyCode, event);
-    }
-
-    private void showMultitasking() {
-        ActivityManager manager = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
-        LinearLayout list = new LinearLayout(this); list.setOrientation(LinearLayout.HORIZONTAL); list.setPadding(dp(18), dp(14), dp(18), dp(14));
-        HorizontalScrollView scroll = new HorizontalScrollView(this); scroll.setHorizontalScrollBarEnabled(false); scroll.addView(list);
-        AlertDialog dialog = new AlertDialog.Builder(this).setTitle("Multitarea · aplicaciones recientes").setView(scroll)
-                .setNegativeButton("Volver", null).create();
-        try {
-            List<ActivityManager.RecentTaskInfo> tasks = manager.getRecentTasks(30, ActivityManager.RECENT_WITH_EXCLUDED);
-            java.util.HashSet<String> seen = new java.util.HashSet<>();
-            PackageManager pm = getPackageManager();
-            for (ActivityManager.RecentTaskInfo task : tasks) {
-                Intent base = task.baseIntent;
-                if (base == null) continue;
-                String pkg = task.origActivity != null ? task.origActivity.getPackageName() :
-                        (task.baseActivity != null ? task.baseActivity.getPackageName() : base.getComponent() != null ? base.getComponent().getPackageName() : "");
-                if (pkg.isEmpty() || pkg.equals(getPackageName()) || !seen.add(pkg)) continue;
-                String label;
-                Drawable icon;
-                try { label = String.valueOf(pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0))); icon = pm.getApplicationIcon(pkg); }
-                catch (Exception e) { continue; }
-                LinearLayout card = new LinearLayout(this); card.setOrientation(LinearLayout.VERTICAL); card.setGravity(Gravity.CENTER); card.setPadding(dp(12), dp(12), dp(12), dp(10));
-                GradientDrawable normal = glassDrawable(0x66202d43, 0x66ffffff, 18); card.setBackground(normal); card.setFocusable(true); card.setClickable(true);
-                ImageView appIcon = new ImageView(this); appIcon.setImageDrawable(icon); appIcon.setScaleType(ImageView.ScaleType.FIT_CENTER);
-                card.addView(appIcon, new LinearLayout.LayoutParams(dp(54), dp(54)));
-                TextView name = text(label, 13, white, true); name.setGravity(Gravity.CENTER); name.setMaxLines(2); name.setEllipsize(TextUtils.TruncateAt.END);
-                LinearLayout.LayoutParams nameParams = new LinearLayout.LayoutParams(dp(126), dp(40)); nameParams.topMargin = dp(8); card.addView(name, nameParams);
-                Button close = button("↑ Cerrar app", false); LinearLayout.LayoutParams closeParams = new LinearLayout.LayoutParams(-1, dp(42)); closeParams.topMargin = dp(8); card.addView(close, closeParams);
-                card.setOnFocusChangeListener((v, focused) -> {
-                    v.animate().cancel(); v.animate().scaleX(focused ? 1.06f : 1f).scaleY(focused ? 1.06f : 1f).setDuration(180).start();
-                    v.setBackground(glassDrawable(focused ? 0x88ffffff : 0x66202d43, focused ? 0xfff5f8ff : 0x66ffffff, 18));
-                    name.setTextColor(focused ? Color.WHITE : muted);
-                });
-                card.setOnClickListener(v -> {
-                    try {
-                        Intent launch = base.cloneFilter();
-                        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
-                        startActivity(launch);
-                        dialog.dismiss();
-                    } catch (Exception e) { Toast.makeText(this, "No se pudo volver a esa aplicación.", Toast.LENGTH_SHORT).show(); }
-                });
-                close.setOnClickListener(v -> {
-                    boolean stopped = forceStopPackage(pkg);
-                    if (stopped) {
-                        list.removeView(card);
-                        Toast.makeText(this, label + " cerrada", Toast.LENGTH_SHORT).show();
-                    } else {
-                        Toast.makeText(this, "El sistema no permitió cerrar " + label + ". Hace falta permiso de sistema/root para forzar su cierre real.", Toast.LENGTH_LONG).show();
-                    }
-                });
-                LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(dp(158), dp(190)); cardParams.rightMargin = dp(12); list.addView(card, cardParams);
-            }
-        } catch (Exception e) {
-            TextView message = text("El firmware no permite consultar las aplicaciones recientes.", 15, white, false);
-            list.addView(message);
-        }
-        if (list.getChildCount() == 0) {
-            TextView empty = text("No hay otras aplicaciones recientes para mostrar.", 15, white, false);
-            list.addView(empty);
-        }
-        dialog.show();
-        dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
-    }
-
-    private boolean forceStopPackage(String packageName) {
-        // A real force-stop is attempted through su when the firmware provides root.
-        // Without root/system privilege Android blocks force-stopping another app.
-        try {
-            Process process = Runtime.getRuntime().exec(new String[]{"su", "-c", "am force-stop " + packageName});
-            int result = process.waitFor();
-            if (result == 0) return true;
-        } catch (Exception ignored) { }
-        try {
-            ActivityManager manager = (ActivityManager) getSystemService(ACTIVITY_SERVICE);
-            manager.killBackgroundProcesses(packageName);
-            return false; // Killing background processes is not equivalent to a real force-stop.
-        } catch (Exception ignored) { return false; }
-    }
-
     @Override public boolean onKeyDown(int keyCode, KeyEvent event) {
         if(keyCode==KeyEvent.KEYCODE_MENU || keyCode==KeyEvent.KEYCODE_SETTINGS) { showCatalogSettings(); return true; }
         return super.onKeyDown(keyCode,event);
     }
 
     private int dp(float value) { return (int)(value*getResources().getDisplayMetrics().density+0.5f); }
-    @Override protected void onDestroy() { handler.removeCallbacks(clockTicker); handler.removeCallbacksAndMessages(null); executor.shutdownNow(); super.onDestroy(); }
+    @Override protected void onDestroy() { handler.removeCallbacksAndMessages(null); executor.shutdownNow(); super.onDestroy(); }
 }
