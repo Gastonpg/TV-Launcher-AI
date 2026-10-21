@@ -7,6 +7,8 @@ import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Shader;
 import android.view.View;
+import android.os.Handler;
+import android.os.Looper;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -16,12 +18,30 @@ public final class GlassClockView extends View {
     private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint edge = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final SimpleDateFormat format = new SimpleDateFormat("HH:mm", Locale.getDefault());
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Runnable ticker = new Runnable() {
+        @Override public void run() {
+            invalidate();
+            if (isAttachedToWindow()) handler.postDelayed(this, 1000L);
+        }
+    };
 
     public GlassClockView(Context context) {
         super(context);
         setFocusable(false);
         setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
         setContentDescription("Reloj");
+    }
+
+    @Override protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        handler.removeCallbacks(ticker);
+        handler.post(ticker);
+    }
+
+    @Override protected void onDetachedFromWindow() {
+        handler.removeCallbacks(ticker);
+        super.onDetachedFromWindow();
     }
 
     @Override protected void onDraw(Canvas canvas) {
