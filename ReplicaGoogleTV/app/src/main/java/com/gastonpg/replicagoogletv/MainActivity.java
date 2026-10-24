@@ -3,6 +3,7 @@ package com.gastonpg.replicagoogletv;
 import android.app.Activity;
 import android.os.Bundle;
 import android.graphics.*;
+import android.graphics.drawable.Drawable;
 import android.view.*;
 import android.content.*;
 import android.content.pm.*;
@@ -47,7 +48,7 @@ public class MainActivity extends Activity {
             drawApps();
             c.restore();
         }
-        void drawContinueCards(){String[] labels={"Continuar viendo","Descubrí contenido","Tu próxima historia"};for(int i=0;i<3;i++){float x=65+i*390;glass(x,715,360,112,20,0x22ffffff,0x38ffffff);p.setShader(new LinearGradient(x,715,x+360,827,new int[]{new int[]{0x553f5b83,0x554b526e,0x554f6c77}[i],0x22203040},null,Shader.TileMode.CLAMP));c.drawRoundRect(x+1,716,x+359,826,19,19,p);p.setShader(null);text(labels[i],x+20,777,21,white,true);text("Abrí una app para empezar",x+20,807,16,muted,false);}}
+        void drawContinueCards(){String[] labels={"Continuar viendo","Descubrí contenido","Tu próxima historia"};for(int i=0;i<3;i++){float x=65+i*390;glass(x,715,360,112,20,0x22ffffff,0x38ffffff);int[] shades={0x553f5b83,0x554b526e,0x554f6c77};p.setShader(new LinearGradient(x,715,x+360,827,new int[]{shades[i],0x22203040},null,Shader.TileMode.CLAMP));c.drawRoundRect(x+1,716,x+359,826,19,19,p);p.setShader(null);text(labels[i],x+20,777,21,white,true);text("Abrí una app para empezar",x+20,807,16,muted,false);}}
         void drawApps(){int count=Math.min(7,Math.max(0,apps.size()));if(count==0){for(int j=0;j<5;j++){float x=65+j*255;card(x,890,225,115,j==selected,"Apps instaladas",j==0?"Abrir configuración":"");}return;}for(int j=0;j<count;j++){float x=65+j*255;boolean focus=j==selected;glass(x,888,225,120,22,focus?0x35ffffff:0x17ffffff,focus?0xfff7fbff:0x38ffffff);if(focus){p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(4);p.setColor(0xfff9fbff);c.drawRoundRect(x+2,890, x+223,1006,21,21,p);p.setStyle(Paint.Style.FILL);}Drawable d=apps.get(j).loadIcon(getPackageManager());d.setBounds((int)x+18,906,(int)x+70,958);d.draw(c);text(ellipsize(apps.get(j).loadLabel(getPackageManager()).toString(),15),x+18,983,19,white,focus);}}
         String ellipsize(String s,int n){return s.length()>n?s.substring(0,n-1)+"…":s;}
         void glass(float x,float y,float w,float h,float r,int fill,int stroke){p.setStyle(Paint.Style.FILL);p.setColor(fill);c.drawRoundRect(x,y,x+w,y+h,r,r,p);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(1.6f);p.setColor(stroke);c.drawRoundRect(x,y,x+w,y+h,r,r,p);p.setStyle(Paint.Style.FILL);}
