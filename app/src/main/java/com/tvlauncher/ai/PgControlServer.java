@@ -173,8 +173,10 @@ public final class PgControlServer extends NanoHTTPD {
         return out;
     }
 
-    private JSONObject error(String message) throws Exception {
-        JSONObject out = new JSONObject(); out.put("ok", false); out.put("error", message); return out;
+    private JSONObject error(String message) {
+        JSONObject out = new JSONObject();
+        try { out.put("ok", false); out.put("error", message); } catch (Exception ignored) { }
+        return out;
     }
 
     private Response json(Response.Status status, JSONObject data) {
