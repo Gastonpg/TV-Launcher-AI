@@ -81,6 +81,8 @@ public final class PgControlServer extends NanoHTTPD {
                 if (input.has("label")) config.put("label", input.optString("label").trim());
                 if (input.has("cardWidthDp")) config.put("cardWidthDp", clamp(input.optInt("cardWidthDp", 128), 80, 320));
                 if (input.has("cardHeightDp")) config.put("cardHeightDp", clamp(input.optInt("cardHeightDp", 66), 48, 220));
+                if (input.has("hidden")) config.put("hidden", input.optBoolean("hidden", false));
+                if (input.has("order")) config.put("order", clamp(input.optInt("order", 10000), 0, 9999));
                 if (input.has("iconBase64")) {
                     String encoded = input.optString("iconBase64", "");
                     if (encoded.length() > 1400000) return json(Response.Status.BAD_REQUEST, error("icon_too_large"));
