@@ -103,7 +103,7 @@ public final class PgControlServer extends NanoHTTPD {
                 }
                 context.getSharedPreferences("pg_control_apps", Context.MODE_PRIVATE)
                     .edit().putString(pkg, config.toString()).apply();
-                context.sendBroadcast(new android.content.Intent("com.tvlaunch.pg.PG_CONTROL_CONFIG_CHANGED"));
+                context.sendBroadcast(new android.content.Intent("com.tvlaunch.pg.PG_CONTROL_CONFIG_CHANGED").setPackage(context.getPackageName()));
                 JSONObject result = new JSONObject();
                 result.put("ok", true); result.put("packageName", pkg); result.put("config", config);
                 return json(Response.Status.OK, result);
