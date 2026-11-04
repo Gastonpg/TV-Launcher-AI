@@ -190,7 +190,15 @@ public class MainActivity extends Activity {
         for (android.content.pm.ResolveInfo info : apps) {
             if (info.activityInfo.packageName.equals(getPackageName())) continue;
             final String pkg = info.activityInfo.packageName; final String cls = info.activityInfo.name;
-            final String name = String.valueOf(info.loadLabel(pm));
+            String defaultName = String.valueOf(info.loadLabel(pm));
+            JSONObject appConfig = new JSONObject();
+            try {
+                String saved = getSharedPreferences("pg_control_apps", MODE_PRIVATE).getString(pkg, "{}");
+                appConfig = new JSONObject(saved == null ? "{}" : saved);
+            } catch (Exception ignored) { }
+            final String name = appConfig.optString("label", defaultName);
+            final int cardWidth = Math.max(80, Math.min(320, appConfig.optInt("cardWidthDp", 128)));
+            final int cardHeight = Math.max(48, Math.min(220, appConfig.optInt("cardHeightDp", 66)));
 
             // Google TV-inspired app tile: a wide rounded card, not a square box around the icon.
             LinearLayout tile = new LinearLayout(this);
@@ -226,13 +234,13 @@ public class MainActivity extends Activity {
             try { icon.setImageDrawable(info.loadIcon(pm)); } catch (Exception ignored) { }
             FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER);
             card.addView(icon, iconParams);
-            tile.addView(card, new LinearLayout.LayoutParams(dp(128), dp(66)));
+            tile.addView(card, new LinearLayout.LayoutParams(dp(cardWidth), dp(cardHeight)));
 
             TextView label = text(name, 11, white, true);
             label.setGravity(Gravity.CENTER);
             label.setMaxLines(1);
             label.setEllipsize(TextUtils.TruncateAt.END);
-            LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(dp(128), -2);
+            LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(dp(cardWidth), -2);
             np.topMargin = dp(5);
             tile.addView(label, np);
 
@@ -255,9 +263,15 @@ public class MainActivity extends Activity {
                 if (focused) selectApp(pkg, name);
             });
             tile.setOnClickListener(v -> launchApp(pkg, cls));
-            LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(dp(140), dp(100));
+            LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(dp(cardWidth + 12), dp(cardHeight + 34));
             item.rightMargin = dp(8);
             appRail.addView(tile, item);
+            if (cardHeight + 46 > 112 && appRail.getParent() instanceof View) {
+                View rail = (View) appRail.getParent();
+                ViewGroup.LayoutParams railParams = rail.getLayoutParams();
+                railParams.height = dp(cardHeight + 46);
+                rail.setLayoutParams(railParams);
+            }
         }
         if (apps.isEmpty()) statusText.setText("No se encontraron aplicaciones iniciables.");
     }
