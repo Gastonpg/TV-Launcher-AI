@@ -212,8 +212,10 @@ public class MainActivity extends Activity {
             final String name = appConfig.optString("label", defaultName);
             final int cardWidth = Math.max(80, Math.min(320, appConfig.optInt("cardWidthDp", 128)));
             final int cardHeight = Math.max(48, Math.min(220, appConfig.optInt("cardHeightDp", 66)));
+            final String cardStyle = appConfig.optString("cardStyle", "glass");
+            final int cardRadius = appConfig.optInt("cardRadiusDp", 16);
 
-            // Google TV-inspired app tile: a wide rounded card, not a square box around the icon.
+            // Google TV-inspired app tile with per-app appearance controls.
             LinearLayout tile = new LinearLayout(this);
             tile.setOrientation(LinearLayout.VERTICAL);
             tile.setGravity(Gravity.CENTER);
@@ -223,9 +225,8 @@ public class MainActivity extends Activity {
             tile.setBackgroundColor(Color.TRANSPARENT);
 
             FrameLayout card = new FrameLayout(this);
-            GradientDrawable normalCard = glassDrawable(0x77202b3d, 0x44ffffff, 15);
-            GradientDrawable focusedCard = glassDrawable(0x99202b3d, 0xfff5f8ff, 15);
-            focusedCard.setStroke(dp(2), 0xfff5f8ff);
+            GradientDrawable normalCard = appCardDrawable(cardStyle, false, cardRadius);
+            GradientDrawable focusedCard = appCardDrawable(cardStyle, true, cardRadius);
             StateListDrawable cardStates = new StateListDrawable();
             cardStates.addState(new int[]{android.R.attr.state_focused}, focusedCard);
             cardStates.addState(new int[]{}, normalCard);
@@ -237,9 +238,9 @@ public class MainActivity extends Activity {
             View sheen = new View(this);
             GradientDrawable sheenDrawable = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
                     new int[]{0x44ffffff, 0x12ffffff, 0x00ffffff});
-            sheenDrawable.setCornerRadius(dp(15));
+            sheenDrawable.setCornerRadius(dp(cardRadius));
             sheen.setBackground(sheenDrawable);
-            card.addView(sheen, new FrameLayout.LayoutParams(-1, -1));
+            if ("glass".equals(cardStyle)) card.addView(sheen, new FrameLayout.LayoutParams(-1, -1));
 
             ImageView icon = new ImageView(this);
             icon.setBackgroundColor(Color.TRANSPARENT);
@@ -587,6 +588,25 @@ public class MainActivity extends Activity {
         drawable.setColor(tint);
         drawable.setCornerRadius(dp(radiusDp));
         drawable.setStroke(dp(1), stroke);
+        return drawable;
+    }
+
+    private GradientDrawable appCardDrawable(String style, boolean focused, int radiusDp) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setCornerRadius(dp(Math.max(0, Math.min(28, radiusDp))));
+        if ("solid".equals(style)) {
+            drawable.setColor(focused ? 0xff344d70 : 0xff202d43);
+            drawable.setStroke(dp(focused ? 2 : 1), focused ? 0xfff5f8ff : 0x665f789a);
+        } else if ("outline".equals(style)) {
+            drawable.setColor(focused ? 0x553b5e88 : 0x22202b3d);
+            drawable.setStroke(dp(focused ? 2 : 1), focused ? 0xfff5f8ff : 0x99c7d8f2);
+        } else if ("minimal".equals(style)) {
+            drawable.setColor(focused ? 0x553b5e88 : 0x11202b3d);
+            drawable.setStroke(dp(focused ? 2 : 0), focused ? 0xfff5f8ff : 0x00000000);
+        } else {
+            drawable.setColor(focused ? 0x99202b3d : 0x77202b3d);
+            drawable.setStroke(dp(focused ? 2 : 1), focused ? 0xfff5f8ff : 0x44ffffff);
+        }
         return drawable;
     }
 
