@@ -5,6 +5,11 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.util.Base64;
+import java.io.File;
+import java.io.FileOutputStream;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.io.IOException;
@@ -72,6 +77,24 @@ public final class PgControlServer extends NanoHTTPD {
                 if (input.has("label")) config.put("label", input.optString("label").trim());
                 if (input.has("cardWidthDp")) config.put("cardWidthDp", clamp(input.optInt("cardWidthDp", 128), 80, 320));
                 if (input.has("cardHeightDp")) config.put("cardHeightDp", clamp(input.optInt("cardHeightDp", 66), 48, 220));
+                if (input.has("iconBase64")) {
+                    String encoded = input.optString("iconBase64", "");
+                    if (encoded.length() > 1400000) return json(Response.Status.BAD_REQUEST, error("icon_too_large"));
+                    byte[] bytes = Base64.decode(encoded, Base64.DEFAULT);
+                    Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+                    if (bitmap == null || bitmap.getWidth() > 512 || bitmap.getHeight() > 512) {
+                        if (bitmap != null) bitmap.recycle();
+                        return json(Response.Status.BAD_REQUEST, error("invalid_icon"));
+                    }
+                    File directory = new File(context.getFilesDir(), "pg_control_icons");
+                    if (!directory.exists() && !directory.mkdirs()) return json(Response.Status.INTERNAL_ERROR, error("icon_storage_failed"));
+                    String safeName = pkg.replaceAll("[^A-Za-z0-9_.]", "_");
+                    File iconFile = new File(directory, safeName + ".png");
+                    try (FileOutputStream output = new FileOutputStream(iconFile)) {
+                        bitmap.compress(Bitmap.CompressFormat.PNG, 100, output);
+                    } finally { bitmap.recycle(); }
+                    config.put("hasCustomIcon", true);
+                }
                 context.getSharedPreferences("pg_control_apps", Context.MODE_PRIVATE)
                     .edit().putString(pkg, config.toString()).apply();
                 context.sendBroadcast(new android.content.Intent("com.tvlaunch.pg.PG_CONTROL_CONFIG_CHANGED"));
