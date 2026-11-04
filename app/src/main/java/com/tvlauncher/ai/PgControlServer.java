@@ -61,7 +61,20 @@ public final class PgControlServer extends NanoHTTPD {
                 if ("/v1/packages".equals(path)) return json(Response.Status.OK, packages());
                 if ("/v1/launcher".equals(path)) return json(Response.Status.OK, launcherInfo());
                 if ("/v1/launcher/app-configs".equals(path)) return json(Response.Status.OK, appConfigs());
+                if ("/v1/launcher/layout".equals(path)) return json(Response.Status.OK, layoutConfig());
                 return json(Response.Status.NOT_FOUND, error("not_found"));
+            }
+            if ("POST".equals(session.getMethod().name()) && "/v1/launcher/layout".equals(path)) {
+                Map<String, String> files = new HashMap<>(); session.parseBody(files);
+                String body = files.get("postData");
+                if (body == null) return json(Response.Status.BAD_REQUEST, error("missing_body"));
+                String layout = new JSONObject(body).optString("layout", "horizontal");
+                if (!"horizontal".equals(layout) && !"grid".equals(layout) && !"category_rows".equals(layout) && !"category_grid".equals(layout))
+                    return json(Response.Status.BAD_REQUEST, error("invalid_layout"));
+                context.getSharedPreferences("tvpg", Context.MODE_PRIVATE).edit().putString("apps_layout", layout).apply();
+                context.sendBroadcast(new android.content.Intent("com.tvlaunch.pg.PG_CONTROL_CONFIG_CHANGED").setPackage(context.getPackageName()));
+                JSONObject result = new JSONObject(); result.put("ok", true); result.put("layout", layout);
+                return json(Response.Status.OK, result);
             }
             if ("POST".equals(session.getMethod().name()) && "/v1/launcher/app-config".equals(path)) {
                 Map<String, String> files = new HashMap<>();
@@ -94,6 +107,11 @@ public final class PgControlServer extends NanoHTTPD {
                     config.put("cardRadiusDp", radius);
                 }
                 if (input.has("hidden")) config.put("hidden", input.optBoolean("hidden", false));
+                if (input.has("category")) {
+                    String category = input.optString("category", "").trim();
+                    if (category.length() > 40) return json(Response.Status.BAD_REQUEST, error("category_too_long"));
+                    config.put("category", category);
+                }
                 if (input.has("order")) config.put("order", clamp(input.optInt("order", 10000), 0, 10000));
                 if (input.has("iconBase64")) {
                     String encoded = input.optString("iconBase64", "");
@@ -160,6 +178,11 @@ public final class PgControlServer extends NanoHTTPD {
         }
         JSONObject out = new JSONObject(); out.put("apps", list); out.put("count", list.length());
         return out;
+    }
+
+    private JSONObject layoutConfig() throws Exception {
+        String layout = context.getSharedPreferences("tvpg", Context.MODE_PRIVATE).getString("apps_layout", "horizontal");
+        JSONObject out = new JSONObject(); out.put("layout", layout); return out;
     }
 
     private JSONObject appConfigs() throws Exception {
