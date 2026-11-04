@@ -73,7 +73,11 @@ public final class PgControlServer extends NanoHTTPD {
                 if (pkg.isEmpty() || pkg.length() > 200) return json(Response.Status.BAD_REQUEST, error("invalid_package"));
                 try { context.getPackageManager().getApplicationInfo(pkg, 0); }
                 catch (Exception e) { return json(Response.Status.NOT_FOUND, error("package_not_installed")); }
-                JSONObject config = new JSONObject();
+                JSONObject config;
+                try {
+                    String previous = context.getSharedPreferences("pg_control_apps", Context.MODE_PRIVATE).getString(pkg, "{}");
+                    config = new JSONObject(previous == null ? "{}" : previous);
+                } catch (Exception ignored) { config = new JSONObject(); }
                 if (input.has("label")) config.put("label", input.optString("label").trim());
                 if (input.has("cardWidthDp")) config.put("cardWidthDp", clamp(input.optInt("cardWidthDp", 128), 80, 320));
                 if (input.has("cardHeightDp")) config.put("cardHeightDp", clamp(input.optInt("cardHeightDp", 66), 48, 220));
