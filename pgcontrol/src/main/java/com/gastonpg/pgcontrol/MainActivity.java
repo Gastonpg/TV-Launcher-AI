@@ -78,6 +78,7 @@ public class MainActivity extends Activity {
             preset.setOnClickListener(v->{width.setText(String.valueOf(presetSizes[selected][0]));height.setText(String.valueOf(presetSizes[selected][1]));});
         }
         card.addView(presets);
+        TextView appearance=label("Aspecto de tarjeta: Glass / Sólida / Contorno / Minimal",13,true);card.addView(appearance);
         EditText order=number("Orden (0 primero)",String.valueOf(cfg.optInt("order",10000)));card.addView(order);
         CheckBox hidden=new CheckBox(this);hidden.setText("Ocultar esta aplicación del launcher");hidden.setTextColor(Color.WHITE);hidden.setChecked(cfg.optBoolean("hidden",false));card.addView(hidden);
         Button choose=button("Elegir icono");card.addView(choose);choose.setOnClickListener(v->{iconPackage=pkg;Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("image/*");startActivityForResult(i,88);});
