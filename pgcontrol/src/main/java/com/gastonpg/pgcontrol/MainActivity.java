@@ -90,12 +90,13 @@ public class MainActivity extends Activity {
 
     interface Done{void accept(JSONObject r);}
     void call(String method,String path,JSONObject body,Done done){
+        final String base=host.getText().toString().trim().replaceAll("/+$","");
+        final String auth=token.getText().toString().trim();
         io.execute(()->{
             HttpURLConnection c=null;
             try{
-                String base=host.getText().toString().trim().replaceAll("/+$","");
                 c=(HttpURLConnection)new URL(base+path).openConnection();c.setRequestMethod(method);c.setConnectTimeout(7000);c.setReadTimeout(12000);
-                c.setRequestProperty("Authorization","Bearer "+token.getText().toString().trim());c.setRequestProperty("Accept","application/json");
+                c.setRequestProperty("Authorization","Bearer "+auth);c.setRequestProperty("Accept","application/json");
                 if(body!=null){c.setDoOutput(true);c.setRequestProperty("Content-Type","application/json");try(OutputStream o=c.getOutputStream()){o.write(body.toString().getBytes(StandardCharsets.UTF_8));}}
                 int code=c.getResponseCode();InputStream in=code<400?c.getInputStream():c.getErrorStream();
                 ByteArrayOutputStream out=new ByteArrayOutputStream();byte[] buf=new byte[4096];int n;while((n=in.read(buf))>0)out.write(buf,0,n);
