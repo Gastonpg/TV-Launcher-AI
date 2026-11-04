@@ -68,6 +68,16 @@ public class MainActivity extends Activity {
         LinearLayout dims=new LinearLayout(this);
         EditText width=number("Ancho dp",String.valueOf(cfg.optInt("cardWidthDp",128))),height=number("Alto dp",String.valueOf(cfg.optInt("cardHeightDp",66)));
         dims.addView(width,new LinearLayout.LayoutParams(0,-2,1));dims.addView(height,new LinearLayout.LayoutParams(0,-2,1));card.addView(dims);
+        LinearLayout presets=new LinearLayout(this);presets.setOrientation(LinearLayout.HORIZONTAL);
+        String[] presetNames={"XS","S","M","L","XL"};
+        int[][] presetSizes={{88,48},{108,56},{128,66},{160,82},{192,100}};
+        for(int presetIndex=0;presetIndex<presetNames.length;presetIndex++){
+            final int selected=presetIndex;
+            Button preset=button(presetNames[presetIndex]);preset.setTextSize(11);
+            presets.addView(preset,new LinearLayout.LayoutParams(0,-2,1));
+            preset.setOnClickListener(v->{width.setText(String.valueOf(presetSizes[selected][0]));height.setText(String.valueOf(presetSizes[selected][1]));});
+        }
+        card.addView(presets);
         EditText order=number("Orden (0 primero)",String.valueOf(cfg.optInt("order",10000)));card.addView(order);
         CheckBox hidden=new CheckBox(this);hidden.setText("Ocultar esta aplicación del launcher");hidden.setTextColor(Color.WHITE);hidden.setChecked(cfg.optBoolean("hidden",false));card.addView(hidden);
         Button choose=button("Elegir icono");card.addView(choose);choose.setOnClickListener(v->{iconPackage=pkg;Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("image/*");startActivityForResult(i,88);});
