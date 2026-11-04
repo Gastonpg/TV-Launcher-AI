@@ -81,6 +81,18 @@ public final class PgControlServer extends NanoHTTPD {
                 if (input.has("label")) config.put("label", input.optString("label").trim());
                 if (input.has("cardWidthDp")) config.put("cardWidthDp", clamp(input.optInt("cardWidthDp", 128), 80, 320));
                 if (input.has("cardHeightDp")) config.put("cardHeightDp", clamp(input.optInt("cardHeightDp", 66), 48, 220));
+                if (input.has("cardStyle")) {
+                    String style = input.optString("cardStyle", "glass");
+                    if (!"glass".equals(style) && !"solid".equals(style) && !"outline".equals(style) && !"minimal".equals(style))
+                        return json(Response.Status.BAD_REQUEST, error("invalid_card_style"));
+                    config.put("cardStyle", style);
+                }
+                if (input.has("cardRadiusDp")) {
+                    int radius = input.optInt("cardRadiusDp", 16);
+                    if (radius != 0 && radius != 8 && radius != 16 && radius != 28)
+                        return json(Response.Status.BAD_REQUEST, error("invalid_card_radius"));
+                    config.put("cardRadiusDp", radius);
+                }
                 if (input.has("hidden")) config.put("hidden", input.optBoolean("hidden", false));
                 if (input.has("order")) config.put("order", clamp(input.optInt("order", 10000), 0, 10000));
                 if (input.has("iconBase64")) {
