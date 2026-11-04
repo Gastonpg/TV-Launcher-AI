@@ -31,6 +31,12 @@ public class MainActivity extends Activity {
         android.content.SharedPreferences p=getSharedPreferences("connection",0); host.setText(p.getString("host","")); token.setText(p.getString("token",""));
         Button connect=button("Conectar y cargar aplicaciones"); page.addView(connect); connect.setOnClickListener(v->connect());
         status=label("Conectá ambos dispositivos a la misma Wi-Fi.",13,false); page.addView(status);
+        TextView layoutTitle=label("Distribución de aplicaciones",14,true); page.addView(layoutTitle);
+        LinearLayout layoutOptions=new LinearLayout(this); layoutOptions.setOrientation(LinearLayout.HORIZONTAL);
+        String[] layoutNames={"Fila","Cuadrícula","Categorías ↔","Categorías ▦"};
+        String[] layoutValues={"horizontal","grid","category_rows","category_grid"};
+        for(int li=0;li<layoutNames.length;li++){final String layoutValue=layoutValues[li];Button option=button(layoutNames[li]);option.setTextSize(10);layoutOptions.addView(option,new LinearLayout.LayoutParams(0,-2,1));option.setOnClickListener(v->applyLayout(layoutValue));}
+        page.addView(layoutOptions);
         apps=new LinearLayout(this); apps.setOrientation(1); page.addView(apps);
         scroll.addView(page); root.addView(scroll); setContentView(root);
     }
@@ -40,6 +46,20 @@ public class MainActivity extends Activity {
         getSharedPreferences("connection",0).edit().putString("host",h).putString("token",t).apply();
         status.setText("Conectando…");
         call("GET","/v1/device",null,r->{status.setText("Conectado · "+r.optString("model")+" · Android "+r.optString("androidRelease"));loadApps();});
+    }
+
+    void applyLayout(String layout) {
+        try {
+            JSONObject body=new JSONObject(); body.put("layout",layout);
+            status.setText("Cambiando distribución…");
+            call("POST","/v1/launcher/layout",body,r->status.setText("Distribución aplicada: "+layoutLabel(layout)));
+        } catch(Exception e) { status.setText("No se pudo cambiar la distribución."); }
+    }
+    String layoutLabel(String layout) {
+        if("grid".equals(layout))return "Cuadrícula";
+        if("category_rows".equals(layout))return "Categorías en filas";
+        if("category_grid".equals(layout))return "Categorías en cuadrícula";
+        return "Fila horizontal";
     }
 
     void loadApps() {
@@ -91,6 +111,7 @@ public class MainActivity extends Activity {
         for(int ri=0;ri<radiusNames.length;ri++){final int ix=ri;Button opt=button(radiusNames[ri]);opt.setTextSize(10);radii.addView(opt,new LinearLayout.LayoutParams(0,-2,1));opt.setAlpha(ri==selectedIndex?1f:0.55f);opt.setOnClickListener(v->{selectedRadius[0]=ix;for(int j=0;j<radii.getChildCount();j++)radii.getChildAt(j).setAlpha(j==ix?1f:0.55f);});}
         card.addView(radii);
         EditText order=number("Orden (0 primero)",String.valueOf(cfg.optInt("order",10000)));card.addView(order);
+        EditText category=new EditText(this);category.setSingleLine();category.setText(cfg.optString("category",""));category.setHint("Categoría (vacío = automática)");card.addView(category);
         CheckBox hidden=new CheckBox(this);hidden.setText("Ocultar esta aplicación del launcher");hidden.setTextColor(Color.WHITE);hidden.setChecked(cfg.optBoolean("hidden",false));card.addView(hidden);
         Button choose=button("Elegir icono");card.addView(choose);choose.setOnClickListener(v->{iconPackage=pkg;Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("image/*");startActivityForResult(i,88);});
         Button applyIcon=button("Aplicar solo el icono");card.addView(applyIcon);
@@ -106,7 +127,7 @@ public class MainActivity extends Activity {
         save.setOnClickListener(v->{
             try {
                 JSONObject body=new JSONObject();body.put("packageName",pkg);body.put("label",customName.getText().toString());
-                body.put("cardWidthDp",Integer.parseInt(width.getText().toString()));body.put("cardHeightDp",Integer.parseInt(height.getText().toString()));body.put("cardStyle",selectedStyle[0]);body.put("cardRadiusDp",radiusValues[selectedRadius[0]]);body.put("order",Integer.parseInt(order.getText().toString()));body.put("hidden",hidden.isChecked());
+                body.put("cardWidthDp",Integer.parseInt(width.getText().toString()));body.put("cardHeightDp",Integer.parseInt(height.getText().toString()));body.put("cardStyle",selectedStyle[0]);body.put("cardRadiusDp",radiusValues[selectedRadius[0]]);body.put("order",Integer.parseInt(order.getText().toString()));body.put("hidden",hidden.isChecked());body.put("category",category.getText().toString().trim());
                 if(pkg.equals(iconPackage)&&!iconData.isEmpty())body.put("iconBase64",iconData);
                 status.setText("Aplicando "+name+"…");
                 call("POST","/v1/launcher/app-config",body,r->{status.setText("Cambios aplicados a "+name);if(pkg.equals(iconPackage))iconData="";});
