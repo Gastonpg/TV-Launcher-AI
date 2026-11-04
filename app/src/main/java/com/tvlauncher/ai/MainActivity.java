@@ -189,14 +189,20 @@ public class MainActivity extends Activity {
         appRail.removeAllViews(); PackageManager pm = getPackageManager();
         Intent query = new Intent(Intent.ACTION_MAIN); query.addCategory(Intent.CATEGORY_LAUNCHER);
         List<android.content.pm.ResolveInfo> apps = pm.queryIntentActivities(query, 0);
+        final SharedPreferences appPrefs = getSharedPreferences("pg_control_apps", MODE_PRIVATE);
         Collections.sort(apps, new Comparator<android.content.pm.ResolveInfo>() {
             @Override public int compare(android.content.pm.ResolveInfo a, android.content.pm.ResolveInfo b) {
+                int orderA = appOrder(appPrefs, a.activityInfo.packageName);
+                int orderB = appOrder(appPrefs, b.activityInfo.packageName);
+                if (orderA != orderB) return Integer.compare(orderA, orderB);
                 return String.valueOf(a.loadLabel(pm)).compareToIgnoreCase(String.valueOf(b.loadLabel(pm)));
             }
         });
         for (android.content.pm.ResolveInfo info : apps) {
             if (info.activityInfo.packageName.equals(getPackageName())) continue;
             final String pkg = info.activityInfo.packageName; final String cls = info.activityInfo.name;
+            try { if (new JSONObject(appPrefs.getString(pkg, "{}")).optBoolean("hidden", false)) continue; }
+            catch (Exception ignored) { }
             String defaultName = String.valueOf(info.loadLabel(pm));
             JSONObject appConfig = new JSONObject();
             try {
@@ -290,6 +296,11 @@ public class MainActivity extends Activity {
             }
         }
         if (apps.isEmpty()) statusText.setText("No se encontraron aplicaciones iniciables.");
+    }
+
+    private int appOrder(SharedPreferences preferences, String packageName) {
+        try { return new JSONObject(preferences.getString(packageName, "{}")).optInt("order", 10000); }
+        catch (Exception ignored) { return 10000; }
     }
 
     private void selectApp(String pkg, String name) {
