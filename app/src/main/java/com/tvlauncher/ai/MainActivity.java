@@ -14,6 +14,8 @@ import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.net.Uri;
+import android.net.wifi.WifiManager;
+import android.text.format.Formatter;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -78,6 +80,7 @@ public class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        PgControlServer.ensureStarted(getApplicationContext());
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         tmdbKey = prefs().getString("tmdb_key", "").trim();
         customWallpaperUri = prefs().getString("wallpaper_uri", "");
@@ -441,6 +444,7 @@ public class MainActivity extends Activity {
             "Elegir imagen de la TV Box",
             "Usar fondos cinematográficos automáticos",
             "Configurar catálogo de películas y series (TMDB)",
+            "Conectar PG Control del celular",
             "Establecer como launcher predeterminado"
         };
         new AlertDialog.Builder(this)
@@ -449,9 +453,25 @@ public class MainActivity extends Activity {
                 if (which == 0) chooseWallpaper();
                 else if (which == 1) useAutomaticWallpapers();
                 else if (which == 2) showCatalogSettings();
+                else if (which == 3) showPgControlConnectionInfo();
                 else openHomeSettings();
             })
             .setNegativeButton("Cerrar", null)
+            .show();
+    }
+
+
+    private void showPgControlConnectionInfo() {
+        String address = "No disponible";
+        try {
+            WifiManager wifi = (WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+            if (wifi != null) address = Formatter.formatIpAddress(wifi.getConnectionInfo().getIpAddress());
+        } catch (Exception ignored) { }
+        String token = PgControlServer.getPairingToken(this);
+        new AlertDialog.Builder(this)
+            .setTitle("Conectar PG Control")
+            .setMessage("Conectá el celular y la TV Box a la misma red Wi-Fi.\n\nDirección del TV Box:\nhttp://" + address + ":8765\n\nToken de vinculación:\n" + token + "\n\nPor ahora ofrece diagnóstico y lectura de aplicaciones, además de ajustes de tarjetas. No ejecuta comandos ADB ni operaciones root.")
+            .setPositiveButton("Cerrar", null)
             .show();
     }
 
