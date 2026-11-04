@@ -68,12 +68,14 @@ public class MainActivity extends Activity {
         LinearLayout dims=new LinearLayout(this);
         EditText width=number("Ancho dp",String.valueOf(cfg.optInt("cardWidthDp",128))),height=number("Alto dp",String.valueOf(cfg.optInt("cardHeightDp",66)));
         dims.addView(width,new LinearLayout.LayoutParams(0,-2,1));dims.addView(height,new LinearLayout.LayoutParams(0,-2,1));card.addView(dims);
+        EditText order=number("Orden (0 primero)",String.valueOf(cfg.optInt("order",10000)));card.addView(order);
+        CheckBox hidden=new CheckBox(this);hidden.setText("Ocultar esta aplicación del launcher");hidden.setTextColor(Color.WHITE);hidden.setChecked(cfg.optBoolean("hidden",false));card.addView(hidden);
         Button choose=button("Elegir icono");card.addView(choose);choose.setOnClickListener(v->{iconPackage=pkg;Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("image/*");startActivityForResult(i,88);});
         Button save=button("Aplicar en el televisor");card.addView(save);
         save.setOnClickListener(v->{
             try {
                 JSONObject body=new JSONObject();body.put("packageName",pkg);body.put("label",customName.getText().toString());
-                body.put("cardWidthDp",Integer.parseInt(width.getText().toString()));body.put("cardHeightDp",Integer.parseInt(height.getText().toString()));
+                body.put("cardWidthDp",Integer.parseInt(width.getText().toString()));body.put("cardHeightDp",Integer.parseInt(height.getText().toString()));body.put("order",Integer.parseInt(order.getText().toString()));body.put("hidden",hidden.isChecked());
                 if(pkg.equals(iconPackage)&&!iconData.isEmpty())body.put("iconBase64",iconData);
                 status.setText("Aplicando "+name+"…");
                 call("POST","/v1/launcher/app-config",body,r->{status.setText("Cambios aplicados a "+name);if(pkg.equals(iconPackage))iconData="";});
