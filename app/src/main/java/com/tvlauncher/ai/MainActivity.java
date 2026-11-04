@@ -3,6 +3,8 @@ package com.tvlauncher.ai;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.BroadcastReceiver;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -56,6 +58,9 @@ public class MainActivity extends Activity {
     private final int cardColor = Color.argb(225, 24, 33, 51);
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService executor = Executors.newFixedThreadPool(3);
+    private final BroadcastReceiver pgControlReceiver = new BroadcastReceiver() {
+        @Override public void onReceive(android.content.Context context, Intent intent) { loadApps(); }
+    };
     private ImageView heroImage;
     private TextView heroTitle, heroDescription, statusText;
     private LinearLayout appRail, movieRail, seriesRail;
@@ -81,6 +86,7 @@ public class MainActivity extends Activity {
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         PgControlServer.ensureStarted(getApplicationContext());
+        registerReceiver(pgControlReceiver, new IntentFilter("com.tvlaunch.pg.PG_CONTROL_CONFIG_CHANGED"));
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
         tmdbKey = prefs().getString("tmdb_key", "").trim();
         customWallpaperUri = prefs().getString("wallpaper_uri", "");
@@ -672,5 +678,5 @@ public class MainActivity extends Activity {
     }
 
     private int dp(float value) { return (int)(value*getResources().getDisplayMetrics().density+0.5f); }
-    @Override protected void onDestroy() { handler.removeCallbacksAndMessages(null); executor.shutdownNow(); super.onDestroy(); }
+    @Override protected void onDestroy() { unregisterReceiver(pgControlReceiver); handler.removeCallbacksAndMessages(null); executor.shutdownNow(); super.onDestroy(); }
 }
