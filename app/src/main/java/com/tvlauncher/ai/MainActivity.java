@@ -49,6 +49,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -147,9 +149,9 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(-1, dp(54)); ap.topMargin = dp(9); content.addView(actions, ap);
 
         addSectionTitle(content, "TUS APLICACIONES");
-        HorizontalScrollView appsScroll = railScroll(); appsScroll.setClipChildren(false); appsScroll.setClipToPadding(false); appRail = new LinearLayout(this); appRail.setOrientation(LinearLayout.HORIZONTAL);
+        appRail = new LinearLayout(this); appRail.setOrientation(LinearLayout.VERTICAL);
         appRail.setClipChildren(false); appRail.setClipToPadding(false);
-        appsScroll.addView(appRail, new HorizontalScrollView.LayoutParams(-2, -1)); content.addView(appsScroll, new LinearLayout.LayoutParams(-1, dp(112)));
+        content.addView(appRail, new LinearLayout.LayoutParams(-1, -2));
 
         addSectionTitle(content, "PELÍCULAS POPULARES");
         HorizontalScrollView moviesScroll = railScroll(); movieRail = new LinearLayout(this); movieRail.setOrientation(LinearLayout.HORIZONTAL);
@@ -186,7 +188,8 @@ public class MainActivity extends Activity {
     }
 
     private void loadApps() {
-        appRail.removeAllViews(); PackageManager pm = getPackageManager();
+        appRail.removeAllViews();
+        PackageManager pm = getPackageManager();
         Intent query = new Intent(Intent.ACTION_MAIN); query.addCategory(Intent.CATEGORY_LAUNCHER);
         List<android.content.pm.ResolveInfo> apps = pm.queryIntentActivities(query, 0);
         final SharedPreferences appPrefs = getSharedPreferences("pg_control_apps", MODE_PRIVATE);
@@ -198,105 +201,156 @@ public class MainActivity extends Activity {
                 return String.valueOf(a.loadLabel(pm)).compareToIgnoreCase(String.valueOf(b.loadLabel(pm)));
             }
         });
-        for (android.content.pm.ResolveInfo info : apps) {
-            if (info.activityInfo.packageName.equals(getPackageName())) continue;
-            final String pkg = info.activityInfo.packageName; final String cls = info.activityInfo.name;
-            try { if (new JSONObject(appPrefs.getString(pkg, "{}")).optBoolean("hidden", false)) continue; }
-            catch (Exception ignored) { }
-            String defaultName = String.valueOf(info.loadLabel(pm));
-            JSONObject appConfig = new JSONObject();
-            try {
-                String saved = getSharedPreferences("pg_control_apps", MODE_PRIVATE).getString(pkg, "{}");
-                appConfig = new JSONObject(saved == null ? "{}" : saved);
-            } catch (Exception ignored) { }
-            final String name = appConfig.optString("label", defaultName);
-            final int cardWidth = Math.max(80, Math.min(320, appConfig.optInt("cardWidthDp", 128)));
-            final int cardHeight = Math.max(48, Math.min(220, appConfig.optInt("cardHeightDp", 66)));
-            final String cardStyle = appConfig.optString("cardStyle", "glass");
-            final int cardRadius = appConfig.optInt("cardRadiusDp", 16);
+        String layout = prefs().getString("apps_layout", "horizontal");
+        if (!"horizontal".equals(layout) && !"grid".equals(layout) && !"category_rows".equals(layout) && !"category_grid".equals(layout)) layout = "horizontal";
 
-            // Google TV-inspired app tile with per-app appearance controls.
-            LinearLayout tile = new LinearLayout(this);
-            tile.setOrientation(LinearLayout.VERTICAL);
-            tile.setGravity(Gravity.CENTER);
-            tile.setFocusable(true);
-            tile.setClickable(true);
-            tile.setPadding(dp(2), dp(3), dp(2), dp(3));
-            tile.setBackgroundColor(Color.TRANSPARENT);
-
-            FrameLayout card = new FrameLayout(this);
-            GradientDrawable normalCard = appCardDrawable(cardStyle, false, cardRadius);
-            GradientDrawable focusedCard = appCardDrawable(cardStyle, true, cardRadius);
-            StateListDrawable cardStates = new StateListDrawable();
-            cardStates.addState(new int[]{android.R.attr.state_focused}, focusedCard);
-            cardStates.addState(new int[]{}, normalCard);
-            card.setTag("app_card");
-            card.setBackground(cardStates);
-            card.setClipToPadding(false);
-            card.setClipToOutline(true);
-            // A subtle top reflection gives the translucent card a glass-like finish on Android 9.
-            View sheen = new View(this);
-            GradientDrawable sheenDrawable = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                    new int[]{0x44ffffff, 0x12ffffff, 0x00ffffff});
-            sheenDrawable.setCornerRadius(dp(cardRadius));
-            sheen.setBackground(sheenDrawable);
-            if ("glass".equals(cardStyle)) card.addView(sheen, new FrameLayout.LayoutParams(-1, -1));
-
-            ImageView icon = new ImageView(this);
-            icon.setBackgroundColor(Color.TRANSPARENT);
-            icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            try {
-                if (appConfig.optBoolean("hasCustomIcon", false)) {
-                    String safeName = pkg.replaceAll("[^A-Za-z0-9_.]", "_");
-                    File customIcon = new File(new File(getFilesDir(), "pg_control_icons"), safeName + ".png");
-                    if (customIcon.isFile()) icon.setImageBitmap(BitmapFactory.decodeFile(customIcon.getAbsolutePath()));
-                    else icon.setImageDrawable(info.loadIcon(pm));
-                } else icon.setImageDrawable(info.loadIcon(pm));
-            } catch (Exception ignored) {
-                try { icon.setImageDrawable(info.loadIcon(pm)); } catch (Exception ignoredAgain) { }
+        if ("horizontal".equals(layout)) {
+            HorizontalScrollView scroll = railScroll();
+            LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setClipChildren(false); row.setClipToPadding(false);
+            scroll.addView(row, new HorizontalScrollView.LayoutParams(-2, -1));
+            appRail.addView(scroll, new LinearLayout.LayoutParams(-1, dp(150)));
+            for (android.content.pm.ResolveInfo info : apps) {
+                if (info.activityInfo.packageName.equals(getPackageName()) || isAppHidden(appPrefs, info.activityInfo.packageName)) continue;
+                row.addView(createAppTile(info, appPrefs), appTileParams(info, appPrefs));
             }
-            FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER);
-            card.addView(icon, iconParams);
-            tile.addView(card, new LinearLayout.LayoutParams(dp(cardWidth), dp(cardHeight)));
-
-            TextView label = text(name, 11, white, true);
-            label.setGravity(Gravity.CENTER);
-            label.setMaxLines(1);
-            label.setEllipsize(TextUtils.TruncateAt.END);
-            LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(dp(cardWidth), -2);
-            np.topMargin = dp(5);
-            tile.addView(label, np);
-
-            // Google TV-style focus: the selected tile comes forward clearly, with a light parallax lift.
-            tile.setPivotX(dp(70));
-            tile.setPivotY(dp(50));
-            tile.setCameraDistance(dp(1200));
-            tile.setOnFocusChangeListener((v, focused) -> {
-                v.animate().cancel();
-                v.animate()
-                        .scaleX(focused ? 1.18f : 1f)
-                        .scaleY(focused ? 1.18f : 1f)
-                        .translationY(focused ? -dp(8) : 0f)
-                        .translationZ(focused ? dp(18) : 0f)
-                        .setDuration(focused ? 230 : 170)
-                        .setInterpolator(new android.view.animation.DecelerateInterpolator(1.5f))
-                        .start();
-                v.setElevation(focused ? dp(20) : 0);
-                label.setTextColor(focused ? blue : white);
-                if (focused) selectApp(pkg, name);
-            });
-            tile.setOnClickListener(v -> launchApp(pkg, cls));
-            LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(dp(cardWidth + 12), dp(cardHeight + 34));
-            item.rightMargin = dp(8);
-            appRail.addView(tile, item);
-            if (cardHeight + 46 > 112 && appRail.getParent() instanceof View) {
-                View rail = (View) appRail.getParent();
-                ViewGroup.LayoutParams railParams = rail.getLayoutParams();
-                railParams.height = dp(cardHeight + 46);
-                rail.setLayoutParams(railParams);
+        } else if ("grid".equals(layout)) {
+            addAppsGrid(appRail, apps, appPrefs);
+        } else {
+            Map<String, List<android.content.pm.ResolveInfo>> groups = new LinkedHashMap<>();
+            for (android.content.pm.ResolveInfo info : apps) {
+                String pkg = info.activityInfo.packageName;
+                if (pkg.equals(getPackageName()) || isAppHidden(appPrefs, pkg)) continue;
+                String category = appCategory(appPrefs, pkg, String.valueOf(info.loadLabel(pm)));
+                if (!groups.containsKey(category)) groups.put(category, new ArrayList<android.content.pm.ResolveInfo>());
+                groups.get(category).add(info);
+            }
+            for (Map.Entry<String, List<android.content.pm.ResolveInfo>> entry : groups.entrySet()) {
+                addSectionTitle(appRail, entry.getKey().toUpperCase(java.util.Locale.ROOT));
+                if ("category_rows".equals(layout)) {
+                    HorizontalScrollView scroll = railScroll();
+                    LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+                    row.setClipChildren(false); row.setClipToPadding(false);
+                    scroll.addView(row, new HorizontalScrollView.LayoutParams(-2, -1));
+                    appRail.addView(scroll, new LinearLayout.LayoutParams(-1, dp(150)));
+                    for (android.content.pm.ResolveInfo info : entry.getValue())
+                        row.addView(createAppTile(info, appPrefs), appTileParams(info, appPrefs));
+                } else {
+                    addAppsGrid(appRail, entry.getValue(), appPrefs);
+                }
             }
         }
-        if (apps.isEmpty()) statusText.setText("No se encontraron aplicaciones iniciables.");
+        if (apps.isEmpty() && statusText != null) statusText.setText("No se encontraron aplicaciones iniciables.");
+    }
+
+    private boolean isAppHidden(SharedPreferences p, String pkg) {
+        try { return new JSONObject(p.getString(pkg, "{}")).optBoolean("hidden", false); }
+        catch (Exception ignored) { return false; }
+    }
+
+    private String appCategory(SharedPreferences p, String pkg, String label) {
+        try {
+            String saved = p.getString(pkg, "{}");
+            String custom = new JSONObject(saved == null ? "{}" : saved).optString("category", "").trim();
+            if (!custom.isEmpty()) return custom;
+        } catch (Exception ignored) { }
+        String value = (pkg + " " + label).toLowerCase(java.util.Locale.ROOT);
+        if (containsAny(value, "netflix", "disney", "youtube", "prime", "hbo", "plex", "twitch", "paramount", "crunchyroll", "stream")) return "Streaming";
+        if (containsAny(value, "spotify", "music", "musica", "audio", "deezer", "soundcloud", "fl", "radio")) return "Música";
+        if (containsAny(value, "game", "juego", "play", "retro", "emulator", "emulador")) return "Juegos";
+        if (containsAny(value, "setting", "ajuste", "vpn", "file", "archivo", "browser", "explorador", "manager", "gestor")) return "Herramientas";
+        return "Otros";
+    }
+
+    private boolean containsAny(String value, String... terms) {
+        for (String term : terms) if (value.contains(term)) return true;
+        return false;
+    }
+
+    private LinearLayout.LayoutParams appTileParams(android.content.pm.ResolveInfo info, SharedPreferences appPrefs) {
+        int width = 128, height = 66;
+        try {
+            JSONObject cfg = new JSONObject(appPrefs.getString(info.activityInfo.packageName, "{}"));
+            width = Math.max(80, Math.min(320, cfg.optInt("cardWidthDp", 128)));
+            height = Math.max(48, Math.min(220, cfg.optInt("cardHeightDp", 66)));
+        } catch (Exception ignored) { }
+        LinearLayout.LayoutParams item = new LinearLayout.LayoutParams(dp(width + 12), dp(height + 34));
+        item.rightMargin = dp(8); item.bottomMargin = dp(8);
+        return item;
+    }
+
+    private void addAppsGrid(LinearLayout parent, List<android.content.pm.ResolveInfo> entries, SharedPreferences appPrefs) {
+        final int columns = 5;
+        LinearLayout row = null;
+        int index = 0;
+        for (android.content.pm.ResolveInfo info : entries) {
+            if (info.activityInfo.packageName.equals(getPackageName()) || isAppHidden(appPrefs, info.activityInfo.packageName)) continue;
+            if (index % columns == 0) {
+                row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setGravity(Gravity.CENTER_VERTICAL); row.setClipChildren(false); row.setClipToPadding(false);
+                parent.addView(row, new LinearLayout.LayoutParams(-1, -2));
+            }
+            row.addView(createAppTile(info, appPrefs), appTileParams(info, appPrefs));
+            index++;
+        }
+    }
+
+    private View createAppTile(android.content.pm.ResolveInfo info, SharedPreferences appPrefs) {
+        PackageManager pm = getPackageManager();
+        final String pkg = info.activityInfo.packageName, cls = info.activityInfo.name;
+        String defaultName = String.valueOf(info.loadLabel(pm));
+        JSONObject appConfig = new JSONObject();
+        try {
+            String saved = appPrefs.getString(pkg, "{}");
+            appConfig = new JSONObject(saved == null ? "{}" : saved);
+        } catch (Exception ignored) { }
+        final String name = appConfig.optString("label", defaultName);
+        final int cardWidth = Math.max(80, Math.min(320, appConfig.optInt("cardWidthDp", 128)));
+        final int cardHeight = Math.max(48, Math.min(220, appConfig.optInt("cardHeightDp", 66)));
+        final String cardStyle = appConfig.optString("cardStyle", "glass");
+        final int cardRadius = appConfig.optInt("cardRadiusDp", 16);
+        LinearLayout tile = new LinearLayout(this);
+        tile.setOrientation(LinearLayout.VERTICAL); tile.setGravity(Gravity.CENTER);
+        tile.setFocusable(true); tile.setClickable(true); tile.setPadding(dp(2), dp(3), dp(2), dp(3));
+        tile.setBackgroundColor(Color.TRANSPARENT);
+        FrameLayout card = new FrameLayout(this);
+        GradientDrawable normalCard = appCardDrawable(cardStyle, false, cardRadius);
+        GradientDrawable focusedCard = appCardDrawable(cardStyle, true, cardRadius);
+        StateListDrawable cardStates = new StateListDrawable();
+        cardStates.addState(new int[]{android.R.attr.state_focused}, focusedCard);
+        cardStates.addState(new int[]{}, normalCard);
+        card.setTag("app_card"); card.setBackground(cardStates);
+        card.setClipToPadding(false); card.setClipToOutline(true);
+        View sheen = new View(this);
+        GradientDrawable sheenDrawable = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0x44ffffff, 0x12ffffff, 0x00ffffff});
+        sheenDrawable.setCornerRadius(dp(cardRadius)); sheen.setBackground(sheenDrawable);
+        if ("glass".equals(cardStyle)) card.addView(sheen, new FrameLayout.LayoutParams(-1, -1));
+        ImageView icon = new ImageView(this); icon.setBackgroundColor(Color.TRANSPARENT); icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        try {
+            if (appConfig.optBoolean("hasCustomIcon", false)) {
+                String safeName = pkg.replaceAll("[^A-Za-z0-9_.]", "_");
+                File customIcon = new File(new File(getFilesDir(), "pg_control_icons"), safeName + ".png");
+                if (customIcon.isFile()) icon.setImageBitmap(BitmapFactory.decodeFile(customIcon.getAbsolutePath()));
+                else icon.setImageDrawable(info.loadIcon(pm));
+            } else icon.setImageDrawable(info.loadIcon(pm));
+        } catch (Exception ignored) { try { icon.setImageDrawable(info.loadIcon(pm)); } catch (Exception ignoredAgain) { } }
+        card.addView(icon, new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER));
+        tile.addView(card, new LinearLayout.LayoutParams(dp(cardWidth), dp(cardHeight)));
+        TextView label = text(name, 11, white, true); label.setGravity(Gravity.CENTER);
+        label.setMaxLines(1); label.setEllipsize(TextUtils.TruncateAt.END);
+        LinearLayout.LayoutParams np = new LinearLayout.LayoutParams(dp(cardWidth), -2); np.topMargin = dp(5); tile.addView(label, np);
+        tile.setPivotX(dp(cardWidth / 2)); tile.setPivotY(dp(50)); tile.setCameraDistance(dp(1200));
+        tile.setOnFocusChangeListener((v, focused) -> {
+            v.animate().cancel();
+            v.animate().scaleX(focused ? 1.12f : 1f).scaleY(focused ? 1.12f : 1f)
+                .translationY(focused ? -dp(6) : 0f).translationZ(focused ? dp(18) : 0f)
+                .setDuration(focused ? 210 : 160)
+                .setInterpolator(new android.view.animation.DecelerateInterpolator(1.5f)).start();
+            v.setElevation(focused ? dp(20) : 0); label.setTextColor(focused ? blue : white);
+            if (focused) selectApp(pkg, name);
+        });
+        tile.setOnClickListener(v -> launchApp(pkg, cls));
+        return tile;
     }
 
     private int appOrder(SharedPreferences preferences, String packageName) {
@@ -487,6 +541,7 @@ public class MainActivity extends Activity {
             "Usar fondos cinematográficos automáticos",
             "Configurar catálogo de películas y series (TMDB)",
             "Conectar PG Control del celular",
+            "Distribución de aplicaciones",
             "Establecer como launcher predeterminado"
         };
         new AlertDialog.Builder(this)
@@ -496,12 +551,26 @@ public class MainActivity extends Activity {
                 else if (which == 1) useAutomaticWallpapers();
                 else if (which == 2) showCatalogSettings();
                 else if (which == 3) showPgControlConnectionInfo();
+                else if (which == 4) showAppsLayoutDialog();
                 else openHomeSettings();
             })
             .setNegativeButton("Cerrar", null)
             .show();
     }
 
+
+    private void showAppsLayoutDialog() {
+        String[] labels = {"Fila horizontal (original)", "Cuadrícula", "Categorías en filas", "Categorías en cuadrícula"};
+        String[] values = {"horizontal", "grid", "category_rows", "category_grid"};
+        String current = prefs().getString("apps_layout", "horizontal");
+        int selected = 0; for (int i=0;i<values.length;i++) if (values[i].equals(current)) selected=i;
+        new AlertDialog.Builder(this).setTitle("Distribución de aplicaciones")
+            .setSingleChoiceItems(labels, selected, (dialog, which) -> {
+                prefs().edit().putString("apps_layout", values[which]).apply();
+                dialog.dismiss(); loadApps();
+                statusTextIfReady("Distribución actualizada");
+            }).setNegativeButton("Cancelar", null).show();
+    }
 
     private void showPgControlConnectionInfo() {
         String address = "No disponible";
