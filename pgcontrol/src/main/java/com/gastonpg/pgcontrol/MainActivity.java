@@ -78,7 +78,18 @@ public class MainActivity extends Activity {
             preset.setOnClickListener(v->{width.setText(String.valueOf(presetSizes[selected][0]));height.setText(String.valueOf(presetSizes[selected][1]));});
         }
         card.addView(presets);
-        TextView appearance=label("Aspecto de tarjeta: Glass / Sólida / Contorno / Minimal",13,true);card.addView(appearance);
+        TextView appearance=label("Aspecto de tarjeta",13,true);card.addView(appearance);
+        String[] styleNames={"Glass","Sólida","Contorno","Minimal"}, styleValues={"glass","solid","outline","minimal"};
+        String[] selectedStyle={cfg.optString("cardStyle","glass")};
+        LinearLayout styles=new LinearLayout(this);styles.setOrientation(LinearLayout.HORIZONTAL);
+        for(int si=0;si<styleNames.length;si++){final int ix=si;Button opt=button(styleNames[si]);opt.setTextSize(10);styles.addView(opt,new LinearLayout.LayoutParams(0,-2,1));opt.setAlpha(styleValues[si].equals(selectedStyle[0])?1f:0.55f);opt.setOnClickListener(v->{selectedStyle[0]=styleValues[ix];for(int j=0;j<styles.getChildCount();j++)styles.getChildAt(j).setAlpha(j==ix?1f:0.55f);});}
+        card.addView(styles);
+        TextView radiusTitle=label("Esquinas",13,true);card.addView(radiusTitle);
+        String[] radiusNames={"Recta","Suave","Redonda","Píldora"};int[] radiusValues={0,8,16,28};
+        int currentRadius=cfg.optInt("cardRadiusDp",16), selectedIndex=2;for(int j=0;j<radiusValues.length;j++)if(radiusValues[j]==currentRadius)selectedIndex=j;
+        final int[] selectedRadius={selectedIndex};LinearLayout radii=new LinearLayout(this);radii.setOrientation(LinearLayout.HORIZONTAL);
+        for(int ri=0;ri<radiusNames.length;ri++){final int ix=ri;Button opt=button(radiusNames[ri]);opt.setTextSize(10);radii.addView(opt,new LinearLayout.LayoutParams(0,-2,1));opt.setAlpha(ri==selectedIndex?1f:0.55f);opt.setOnClickListener(v->{selectedRadius[0]=ix;for(int j=0;j<radii.getChildCount();j++)radii.getChildAt(j).setAlpha(j==ix?1f:0.55f);});}
+        card.addView(radii);
         EditText order=number("Orden (0 primero)",String.valueOf(cfg.optInt("order",10000)));card.addView(order);
         CheckBox hidden=new CheckBox(this);hidden.setText("Ocultar esta aplicación del launcher");hidden.setTextColor(Color.WHITE);hidden.setChecked(cfg.optBoolean("hidden",false));card.addView(hidden);
         Button choose=button("Elegir icono");card.addView(choose);choose.setOnClickListener(v->{iconPackage=pkg;Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("image/*");startActivityForResult(i,88);});
@@ -86,7 +97,7 @@ public class MainActivity extends Activity {
         save.setOnClickListener(v->{
             try {
                 JSONObject body=new JSONObject();body.put("packageName",pkg);body.put("label",customName.getText().toString());
-                body.put("cardWidthDp",Integer.parseInt(width.getText().toString()));body.put("cardHeightDp",Integer.parseInt(height.getText().toString()));body.put("order",Integer.parseInt(order.getText().toString()));body.put("hidden",hidden.isChecked());
+                body.put("cardWidthDp",Integer.parseInt(width.getText().toString()));body.put("cardHeightDp",Integer.parseInt(height.getText().toString()));body.put("cardStyle",selectedStyle[0]);body.put("cardRadiusDp",radiusValues[selectedRadius[0]]);body.put("order",Integer.parseInt(order.getText().toString()));body.put("hidden",hidden.isChecked());
                 if(pkg.equals(iconPackage)&&!iconData.isEmpty())body.put("iconBase64",iconData);
                 status.setText("Aplicando "+name+"…");
                 call("POST","/v1/launcher/app-config",body,r->{status.setText("Cambios aplicados a "+name);if(pkg.equals(iconPackage))iconData="";});
