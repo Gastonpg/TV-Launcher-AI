@@ -2,6 +2,10 @@ plugins {
     id 'com.android.application'
 }
 
+dependencies {
+    implementation 'org.nanohttpd:nanohttpd:2.3.1'
+}
+
 android {
     namespace 'com.tvlauncher.ai'
     compileSdk 34
@@ -14,8 +18,6 @@ android {
         versionName '2.5-instant-boot'
         ndk { abiFilters 'armeabi-v7a' }
     }
-
-    implementation 'org.nanohttpd:nanohttpd:2.3.1'
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
