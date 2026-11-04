@@ -42,6 +42,13 @@ jobs:
       - name: Compile launcher
         run: gradle --no-daemon assembleDebug
 
+      - name: Upload PG Control phone APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: PG-Control-Android
+          path: pgcontrol/build/outputs/apk/debug/pgcontrol-debug.apk
+          if-no-files-found: error
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
