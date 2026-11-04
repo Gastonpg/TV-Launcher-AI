@@ -55,6 +55,7 @@ public final class PgControlServer extends NanoHTTPD {
                 if ("/v1/device".equals(path)) return json(Response.Status.OK, deviceInfo());
                 if ("/v1/packages".equals(path)) return json(Response.Status.OK, packages());
                 if ("/v1/launcher".equals(path)) return json(Response.Status.OK, launcherInfo());
+                if ("/v1/launcher/app-configs".equals(path)) return json(Response.Status.OK, appConfigs());
                 return json(Response.Status.NOT_FOUND, error("not_found"));
             }
             if ("POST".equals(session.getMethod().name()) && "/v1/launcher/app-config".equals(path)) {
@@ -73,6 +74,7 @@ public final class PgControlServer extends NanoHTTPD {
                 if (input.has("cardHeightDp")) config.put("cardHeightDp", clamp(input.optInt("cardHeightDp", 66), 48, 220));
                 context.getSharedPreferences("pg_control_apps", Context.MODE_PRIVATE)
                     .edit().putString(pkg, config.toString()).apply();
+                context.sendBroadcast(new android.content.Intent("com.tvlaunch.pg.PG_CONTROL_CONFIG_CHANGED"));
                 JSONObject result = new JSONObject();
                 result.put("ok", true); result.put("packageName", pkg); result.put("config", config);
                 return json(Response.Status.OK, result);
@@ -116,6 +118,18 @@ public final class PgControlServer extends NanoHTTPD {
             list.put(item);
         }
         JSONObject out = new JSONObject(); out.put("apps", list); out.put("count", list.length());
+        return out;
+    }
+
+    private JSONObject appConfigs() throws Exception {
+        android.content.SharedPreferences p = context.getSharedPreferences("pg_control_apps", Context.MODE_PRIVATE);
+        JSONObject out = new JSONObject();
+        JSONObject configs = new JSONObject();
+        for (Map.Entry<String, ?> entry : p.getAll().entrySet()) {
+            try { configs.put(entry.getKey(), new JSONObject(String.valueOf(entry.getValue()))); }
+            catch (Exception ignored) { }
+        }
+        out.put("configs", configs);
         return out;
     }
 
