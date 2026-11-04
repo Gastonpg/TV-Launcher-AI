@@ -43,22 +43,30 @@ public class MainActivity extends Activity {
     }
 
     void loadApps() {
-        call("GET","/v1/packages",null,r->{
-            apps.removeAllViews(); JSONArray a=r.optJSONArray("apps");
-            if(a==null)return;
-            for(int i=0;i<a.length();i++){JSONObject x=a.optJSONObject(i);if(x!=null)addApp(x);}
-            status.setText("Conectado · "+a.length()+" aplicaciones");
-        });
+        call("GET","/v1/launcher/app-configs",null,configResult ->
+            call("GET","/v1/packages",null,r->{
+                apps.removeAllViews(); JSONArray a=r.optJSONArray("apps");
+                JSONObject configs=configResult.optJSONObject("configs");
+                if(a==null)return;
+                for(int i=0;i<a.length();i++){
+                    JSONObject x=a.optJSONObject(i);
+                    if(x!=null)addApp(x, configs==null?new JSONObject():configs.optJSONObject(x.optString("packageName")));
+                }
+                status.setText("Conectado · "+a.length()+" aplicaciones");
+            })
+        );
     }
 
-    void addApp(JSONObject x) {
-        String pkg=x.optString("packageName"), name=x.optString("label",pkg);
+    void addApp(JSONObject x, JSONObject saved) {
+        String pkg=x.optString("packageName"), defaultName=x.optString("label",pkg);
+        JSONObject cfg=saved==null?new JSONObject():saved;
+        String name=cfg.optString("label",defaultName);
         LinearLayout card=new LinearLayout(this);card.setOrientation(1);card.setPadding(12,12,12,12);card.setBackgroundColor(0xff1b2940);
         LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2);cp.bottomMargin=12;apps.addView(card,cp);
         card.addView(label(name,16,true));card.addView(label(pkg,10,false));
         EditText customName=new EditText(this);customName.setSingleLine();customName.setText(name);customName.setHint("Nombre");card.addView(customName);
         LinearLayout dims=new LinearLayout(this);
-        EditText width=number("Ancho dp","128"),height=number("Alto dp","66");
+        EditText width=number("Ancho dp",String.valueOf(cfg.optInt("cardWidthDp",128))),height=number("Alto dp",String.valueOf(cfg.optInt("cardHeightDp",66)));
         dims.addView(width,new LinearLayout.LayoutParams(0,-2,1));dims.addView(height,new LinearLayout.LayoutParams(0,-2,1));card.addView(dims);
         Button choose=button("Elegir icono");card.addView(choose);choose.setOnClickListener(v->{iconPackage=pkg;Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("image/*");startActivityForResult(i,88);});
         Button save=button("Aplicar en el televisor");card.addView(save);
