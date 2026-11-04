@@ -9,6 +9,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import java.io.File;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
@@ -237,7 +238,16 @@ public class MainActivity extends Activity {
             ImageView icon = new ImageView(this);
             icon.setBackgroundColor(Color.TRANSPARENT);
             icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
-            try { icon.setImageDrawable(info.loadIcon(pm)); } catch (Exception ignored) { }
+            try {
+                if (appConfig.optBoolean("hasCustomIcon", false)) {
+                    String safeName = pkg.replaceAll("[^A-Za-z0-9_.]", "_");
+                    File customIcon = new File(new File(getFilesDir(), "pg_control_icons"), safeName + ".png");
+                    if (customIcon.isFile()) icon.setImageBitmap(BitmapFactory.decodeFile(customIcon.getAbsolutePath()));
+                    else icon.setImageDrawable(info.loadIcon(pm));
+                } else icon.setImageDrawable(info.loadIcon(pm));
+            } catch (Exception ignored) {
+                try { icon.setImageDrawable(info.loadIcon(pm)); } catch (Exception ignoredAgain) { }
+            }
             FrameLayout.LayoutParams iconParams = new FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER);
             card.addView(icon, iconParams);
             tile.addView(card, new LinearLayout.LayoutParams(dp(cardWidth), dp(cardHeight)));
